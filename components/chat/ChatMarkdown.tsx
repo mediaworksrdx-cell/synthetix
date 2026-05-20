@@ -19,7 +19,8 @@ const ChatMarkdown = ({ content, isStreaming }: ChatMarkdownProps) => {
 
   const renderContent = () => {
     // Split by code blocks first
-    const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
+    // Handle \r\n and any trailing whitespace after the language identifier
+    const codeBlockRegex = /```([a-zA-Z0-9_+-]*)[^\n]*\n([\s\S]*?)```/g;
     const parts: { type: "text" | "code"; content: string; lang?: string }[] = [];
     let lastIndex = 0;
     let match;

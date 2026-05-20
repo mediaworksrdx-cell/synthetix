@@ -92,7 +92,7 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant }: ChatMes
         </div>
 
         {/* Action bar — visible on hover, only when not streaming */}
-        {!message.isStreaming && (
+        {!message.isStreaming && message.role === "assistant" && (
           <div className={`cmsg-actions ${showActions ? "visible" : ""}`}>
             <button
               className="cmsg-action-btn"
@@ -106,7 +106,7 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant }: ChatMes
               )}
             </button>
 
-            {message.role === "assistant" && isLastAssistant && onRegenerate && (
+            {isLastAssistant && onRegenerate && (
               <button
                 className="cmsg-action-btn"
                 onClick={onRegenerate}

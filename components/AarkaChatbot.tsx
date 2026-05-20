@@ -1,12 +1,19 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import ChatMessage from "./chat/ChatMessage";
+import ChatWelcome from "./chat/ChatWelcome";
+import ChatInput from "./chat/ChatInput";
+import ChatScrollFab from "./chat/ChatScrollFab";
 
+/* ─── Types ─── */
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  displayedContent?: string;
   timestamp: Date;
+  isStreaming?: boolean;
 }
 
 interface Conversation {
@@ -16,77 +23,283 @@ interface Conversation {
   createdAt: Date;
 }
 
-const WELCOME_SUGGESTIONS = [
-  { icon: "M13 10V3L4 14h7v7l9-11h-7z", label: "Explain Aarka AI capabilities" },
-  { icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253", label: "How does enterprise AI integration work?" },
-  { icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6m8 0V9a2 2 0 012-2h2a2 2 0 012 2v10m6 0v-4a2 2 0 00-2-2h-2a2 2 0 00-2 2v4", label: "Show me analytics dashboard options" },
-  { icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z", label: "What security features are built-in?" },
-];
-
-const AI_RESPONSES = [
-  "Aarka AI is our proprietary intelligence engine designed for enterprise-scale operations. It features **Neural Orchestration** for coordinating multiple LLM agents, **Contextual Memory** for long-term knowledge retention, and **Deterministic Output** for mission-critical reliability.\n\nWould you like me to dive deeper into any of these capabilities?",
-  "Enterprise AI integration with Aarka follows a three-phase approach:\n\n1. **Discovery** — We map your existing workflows and identify automation opportunities\n2. **Integration** — Our API-first architecture connects seamlessly with your tech stack\n3. **Optimization** — Continuous learning loops refine performance over time\n\nThe entire process typically takes 4-8 weeks depending on complexity.",
-  "Our analytics dashboards provide real-time visibility into:\n\n- **System Performance** — Latency, throughput, and error rates\n- **AI Agent Activity** — Decision paths, confidence scores, and audit trails\n- **Business Metrics** — Custom KPIs with predictive trend analysis\n\nEach dashboard is fully customizable and supports role-based access control.",
-  "Security is at the core of Aarka AI. Here's what's built in:\n\n- **End-to-end encryption** (AES-256 at rest, TLS 1.3 in transit)\n- **Regional data isolation** for compliance with GDPR, SOC 2, HIPAA\n- **Zero-trust architecture** with fine-grained access controls\n- **Full audit logging** with immutable records\n\nWe also support bringing your own encryption keys (BYOK).",
-  "Great question! Aarka AI supports multiple deployment models:\n\n- **Cloud-native** — Fully managed SaaS on our infrastructure\n- **Hybrid** — Processing at the edge with cloud orchestration\n- **On-premise** — Complete air-gapped deployment for regulated industries\n\nAll options include 99.99% uptime SLA and 24/7 enterprise support.",
-];
-
 const generateId = () => Math.random().toString(36).substring(2, 10);
 
+const API_BASE = "http://43.204.153.162:5000";
+
+/* ─── localStorage helpers ─── */
+const STORAGE_KEY = "aarkaai_conversations";
+
+const loadConversations = (): Conversation[] => {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return parsed.map((c: Conversation) => ({
+      ...c,
+      createdAt: new Date(c.createdAt),
+      messages: c.messages.map((m: Message) => ({
+        ...m,
+        timestamp: new Date(m.timestamp),
+        isStreaming: false,
+        displayedContent: m.content,
+      })),
+    }));
+  } catch {
+    return [];
+  }
+};
+
+const saveConversations = (convs: Conversation[]) => {
+  try {
+    const toSave = convs.map((c) => ({
+      ...c,
+      messages: c.messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp,
+      })),
+    }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+  } catch { /* quota exceeded — silently fail */ }
+};
+
+/* ─── Formatting helpers ─── */
+const formatConvDate = (date: Date) => {
+  const d = new Date(date);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+};
+
+const formatConvTime = (date: Date) => {
+  return new Date(date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+/* ─── Component ─── */
 const AarkaChatbot = () => {
-  const [conversations, setConversations] = useState<Conversation[]>([
-    {
-      id: "default",
-      title: "New conversation",
-      messages: [],
-      createdAt: new Date(),
-    },
-  ]);
-  const [activeConvId, setActiveConvId] = useState("default");
+  const [conversations, setConversations] = useState<Conversation[]>(() => {
+    const loaded = loadConversations();
+    if (loaded.length > 0) return loaded;
+    return [
+      {
+        id: "default",
+        title: "New conversation",
+        messages: [],
+        createdAt: new Date(),
+      },
+    ];
+  });
+  const [activeConvId, setActiveConvId] = useState(() => {
+    const loaded = loadConversations();
+    return loaded.length > 0 ? loaded[0].id : "default";
+  });
   const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
+  const [isWaitingForAPI, setIsWaitingForAPI] = useState(false);
+  const [isStreamingText, setIsStreamingText] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showScrollFab, setShowScrollFab] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const streamAbortRef = useRef(false);
+  const streamingMsgIdRef = useRef<string | null>(null);
+  const apiAbortRef = useRef<AbortController | null>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConvId)!;
 
+  // ─── Persist conversations ───
+  useEffect(() => {
+    saveConversations(conversations);
+  }, [conversations]);
+
+  // ─── Auth ───
+  useEffect(() => {
+    const fetchToken = async () => {
+      const savedToken = localStorage.getItem("aarkaai_token");
+      if (savedToken) {
+        setToken(savedToken);
+        return;
+      }
+
+      const defaultUser = {
+        email: "visitor@aarkaai.com",
+        password: "VisitorSecurePassword123!",
+        name: "Web Visitor",
+      };
+
+      try {
+        let resp = await fetch(`${API_BASE}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(defaultUser),
+        });
+
+        if (resp.status === 200) {
+          const data = await resp.json();
+          localStorage.setItem("aarkaai_token", data.access_token);
+          setToken(data.access_token);
+        } else {
+          resp = await fetch(`${API_BASE}/auth/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(defaultUser),
+          });
+          if (resp.status === 200) {
+            const data = await resp.json();
+            localStorage.setItem("aarkaai_token", data.access_token);
+            setToken(data.access_token);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to authenticate visitor:", err);
+      }
+    };
+    fetchToken();
+  }, []);
+
+  // ─── Scroll handling ───
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [activeConv.messages, isTyping, scrollToBottom]);
+  }, [activeConv.messages, isStreamingText, scrollToBottom]);
 
-  // Auto-resize textarea
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height =
-        Math.min(textareaRef.current.scrollHeight, 160) + "px";
-    }
-  }, [input]);
+    const container = messagesContainerRef.current;
+    if (!container) return;
 
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      setShowScrollFab(distanceFromBottom > 200);
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // ─── Streaming simulation ───
+  const simulateStreaming = useCallback(
+    (msgId: string, fullText: string) => {
+      streamAbortRef.current = false;
+      streamingMsgIdRef.current = msgId;
+      setIsStreamingText(true);
+
+      const words = fullText.split(/(\s+)/);
+      let wordIndex = 0;
+      const WORDS_PER_TICK = 2;
+      const TICK_MS = 30;
+
+      const tick = () => {
+        if (streamAbortRef.current || wordIndex >= words.length) {
+          // Done: set final content
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === activeConvId
+                ? {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === msgId
+                        ? { ...m, displayedContent: m.content, isStreaming: false }
+                        : m
+                    ),
+                  }
+                : c
+            )
+          );
+          setIsStreamingText(false);
+          streamingMsgIdRef.current = null;
+          return;
+        }
+
+        wordIndex += WORDS_PER_TICK;
+        const displayed = words.slice(0, wordIndex).join("");
+
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === activeConvId
+              ? {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === msgId ? { ...m, displayedContent: displayed } : m
+                  ),
+                }
+              : c
+          )
+        );
+
+        setTimeout(tick, TICK_MS);
+      };
+
+      tick();
+    },
+    [activeConvId]
+  );
+
+  // ─── Stop generating ───
+  const stopGenerating = useCallback(() => {
+    streamAbortRef.current = true;
+    if (apiAbortRef.current) {
+      apiAbortRef.current.abort();
+      apiAbortRef.current = null;
+    }
+    setIsWaitingForAPI(false);
+
+    // Finalize any streaming message with whatever was displayed so far
+    if (streamingMsgIdRef.current) {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeConvId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === streamingMsgIdRef.current
+                    ? {
+                        ...m,
+                        content: m.displayedContent || m.content,
+                        isStreaming: false,
+                      }
+                    : m
+                ),
+              }
+            : c
+        )
+      );
+      streamingMsgIdRef.current = null;
+    }
+    setIsStreamingText(false);
+  }, [activeConvId]);
+
+  // ─── Send message ───
   const sendMessage = useCallback(
-    (text?: string) => {
+    async (text?: string) => {
       const messageText = text || input.trim();
-      if (!messageText || isTyping) return;
+      if (!messageText || isWaitingForAPI || isStreamingText) return;
 
       const userMessage: Message = {
         id: generateId(),
         role: "user",
         content: messageText,
+        displayedContent: messageText,
         timestamp: new Date(),
       };
 
       setConversations((prev) =>
         prev.map((c) => {
           if (c.id !== activeConvId) return c;
-          const updatedMessages = [...c.messages, userMessage];
           return {
             ...c,
-            messages: updatedMessages,
+            messages: [...c.messages, userMessage],
             title:
               c.messages.length === 0
                 ? messageText.slice(0, 40) + (messageText.length > 40 ? "…" : "")
@@ -96,38 +309,140 @@ const AarkaChatbot = () => {
       );
 
       setInput("");
-      setIsTyping(true);
+      setIsWaitingForAPI(true);
 
-      // Simulate AI response
-      const responseDelay = 1200 + Math.random() * 1500;
-      setTimeout(() => {
-        const aiMessage: Message = {
+      const abortCtrl = new AbortController();
+      apiAbortRef.current = abortCtrl;
+
+      const makePromptRequest = async (authToken: string) => {
+        return fetch(`${API_BASE}/prompt`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            query: messageText,
+            session_id: activeConvId,
+          }),
+          signal: abortCtrl.signal,
+        });
+      };
+
+      const refreshToken = async (): Promise<string | null> => {
+        try {
+          const defaultUser = {
+            email: "visitor@aarkaai.com",
+            password: "VisitorSecurePassword123!",
+            name: "Web Visitor",
+          };
+          const resp = await fetch(`${API_BASE}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(defaultUser),
+          });
+          if (resp.status === 200) {
+            const data = await resp.json();
+            localStorage.setItem("aarkaai_token", data.access_token);
+            setToken(data.access_token);
+            return data.access_token;
+          }
+        } catch { /* ignore */ }
+        return null;
+      };
+
+      try {
+        const currentToken = token || localStorage.getItem("aarkaai_token") || "";
+        let resp = await makePromptRequest(currentToken);
+
+        // If 401/403, refresh token and retry once
+        if (resp.status === 401 || resp.status === 403) {
+          const newToken = await refreshToken();
+          if (newToken) {
+            resp = await makePromptRequest(newToken);
+          }
+        }
+
+        if (resp.status === 200) {
+          const data = await resp.json();
+          const aiMsgId = generateId();
+          const aiMessage: Message = {
+            id: aiMsgId,
+            role: "assistant",
+            content: data.response,
+            displayedContent: "",
+            timestamp: new Date(),
+            isStreaming: true,
+          };
+
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === activeConvId
+                ? { ...c, messages: [...c.messages, aiMessage] }
+                : c
+            )
+          );
+
+          setIsWaitingForAPI(false);
+          simulateStreaming(aiMsgId, data.response);
+        } else {
+          throw new Error(`API returned status ${resp.status}`);
+        }
+      } catch (err) {
+        if ((err as Error).name === "AbortError") {
+          setIsWaitingForAPI(false);
+          return;
+        }
+        console.error("Chat request failed:", err);
+        const errorMessage: Message = {
           id: generateId(),
           role: "assistant",
-          content: AI_RESPONSES[Math.floor(Math.random() * AI_RESPONSES.length)],
+          content: "I'm sorry, I'm having trouble connecting to the Aarka AI backend right now. Please try again in a moment.",
+          displayedContent: "I'm sorry, I'm having trouble connecting to the Aarka AI backend right now. Please try again in a moment.",
           timestamp: new Date(),
         };
-
         setConversations((prev) =>
           prev.map((c) =>
             c.id === activeConvId
-              ? { ...c, messages: [...c.messages, aiMessage] }
+              ? { ...c, messages: [...c.messages, errorMessage] }
               : c
           )
         );
-        setIsTyping(false);
-      }, responseDelay);
+        setIsWaitingForAPI(false);
+      }
     },
-    [input, isTyping, activeConvId]
+    [input, isWaitingForAPI, isStreamingText, activeConvId, token, simulateStreaming]
   );
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+  // ─── Regenerate last response ───
+  const regenerateLastResponse = useCallback(() => {
+    const msgs = activeConv.messages;
+    // Find last user message
+    let lastUserIdx = -1;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === "user") {
+        lastUserIdx = i;
+        break;
+      }
     }
-  };
+    if (lastUserIdx === -1) return;
 
+    const lastUserText = msgs[lastUserIdx].content;
+
+    // Remove all messages after (and including) last assistant response
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === activeConvId
+          ? { ...c, messages: c.messages.slice(0, lastUserIdx + 1) }
+          : c
+      )
+    );
+
+    // Re-send
+    setTimeout(() => sendMessage(lastUserText), 100);
+  }, [activeConv, activeConvId, sendMessage]);
+
+  // ─── Conversation management ───
   const newConversation = () => {
     const conv: Conversation = {
       id: generateId(),
@@ -148,29 +463,19 @@ const AarkaChatbot = () => {
     }
   };
 
-  const renderMarkdown = (text: string) => {
-    // Simple markdown rendering
-    let html = text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code class="chat-inline-code">$1</code>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n- /g, '</p><li>')
-      .replace(/\n(\d+)\. /g, '</p><li class="chat-ol">')
-      .replace(/\n/g, '<br/>');
-
-    if (html.includes('<li>') || html.includes('<li class="chat-ol">')) {
-      html = '<p>' + html + '</p>';
-    } else {
-      html = '<p>' + html + '</p>';
+  // Find the last assistant message id
+  const lastAssistantId = (() => {
+    for (let i = activeConv.messages.length - 1; i >= 0; i--) {
+      if (activeConv.messages[i].role === "assistant") return activeConv.messages[i].id;
     }
+    return null;
+  })();
 
-    return html;
-  };
+  const isBusy = isWaitingForAPI || isStreamingText;
 
   return (
     <div className="chat-container">
-      {/* Sidebar */}
+      {/* ─── Sidebar ─── */}
       <aside className={`chat-sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="chat-sidebar-header">
           <button className="chat-new-btn" onClick={newConversation}>
@@ -180,10 +485,7 @@ const AarkaChatbot = () => {
             </svg>
             <span>New chat</span>
           </button>
-          <button
-            className="chat-sidebar-close"
-            onClick={() => setSidebarOpen(false)}
-          >
+          <button className="chat-sidebar-close" onClick={() => setSidebarOpen(false)}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
               <line x1="9" y1="3" x2="9" y2="21" />
@@ -201,7 +503,12 @@ const AarkaChatbot = () => {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="chat-sidebar-item-icon">
                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
               </svg>
-              <span className="chat-sidebar-item-title">{conv.title}</span>
+              <div className="chat-sidebar-item-info">
+                <span className="chat-sidebar-item-title">{conv.title}</span>
+                <span className="chat-sidebar-item-meta" suppressHydrationWarning>
+                  {formatConvDate(conv.createdAt)} · {formatConvTime(conv.createdAt)}
+                </span>
+              </div>
               {conversations.length > 1 && (
                 <button
                   className="chat-sidebar-item-delete"
@@ -236,15 +543,12 @@ const AarkaChatbot = () => {
         <div className="chat-sidebar-overlay" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Main Chat Area */}
+      {/* ─── Main Chat Area ─── */}
       <div className="chat-main">
         {/* Top bar */}
         <div className="chat-topbar">
           {!sidebarOpen && (
-            <button
-              className="chat-sidebar-toggle"
-              onClick={() => setSidebarOpen(true)}
-            >
+            <button className="chat-sidebar-toggle" onClick={() => setSidebarOpen(true)}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                 <line x1="9" y1="3" x2="9" y2="21" />
@@ -255,74 +559,45 @@ const AarkaChatbot = () => {
             <span className="chat-topbar-model">Aarka AI</span>
             <span className="chat-topbar-badge">Enterprise</span>
           </div>
+          {isBusy && (
+            <div className="chat-topbar-status">
+              <span className="chat-topbar-status-dot" />
+              {isWaitingForAPI ? "Thinking…" : "Generating…"}
+            </div>
+          )}
         </div>
 
         {/* Messages */}
-        <div className="chat-messages">
-          {activeConv.messages.length === 0 && !isTyping ? (
-            <div className="chat-welcome">
-              <div className="chat-welcome-logo">
-                <div className="chat-welcome-logo-inner">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2a10 10 0 110 20 10 10 0 010-20z" />
-                    <path d="M12 8v4l3 3" />
-                  </svg>
-                </div>
-                <div className="chat-welcome-pulse" />
-              </div>
-              <h2 className="chat-welcome-title">How can I help you today?</h2>
-              <p className="chat-welcome-sub">
-                I&apos;m Aarka AI — your enterprise intelligence assistant. Ask me about AI integration, analytics, security, or anything else.
-              </p>
-              <div className="chat-suggestions">
-                {WELCOME_SUGGESTIONS.map((s, i) => (
-                  <button
-                    key={i}
-                    className="chat-suggestion-card"
-                    onClick={() => sendMessage(s.label)}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d={s.icon} />
-                    </svg>
-                    <span>{s.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+        <div className="chat-messages" ref={messagesContainerRef}>
+          {activeConv.messages.length === 0 && !isBusy ? (
+            <ChatWelcome onSendMessage={sendMessage} />
           ) : (
             <div className="chat-messages-inner">
               {activeConv.messages.map((msg) => (
-                <div key={msg.id} className={`chat-bubble-row ${msg.role}`}>
-                  {msg.role === "assistant" && (
-                    <div className="chat-avatar-ai">
-                      <span>A</span>
-                    </div>
-                  )}
-                  <div className={`chat-bubble chat-bubble-${msg.role}`}>
-                    {msg.role === "assistant" ? (
-                      <div
-                        className="chat-bubble-content"
-                        dangerouslySetInnerHTML={{
-                          __html: renderMarkdown(msg.content),
-                        }}
-                      />
-                    ) : (
-                      <p className="chat-bubble-content">{msg.content}</p>
-                    )}
-                  </div>
-                </div>
+                <ChatMessage
+                  key={msg.id}
+                  message={msg}
+                  onRegenerate={regenerateLastResponse}
+                  isLastAssistant={msg.id === lastAssistantId}
+                />
               ))}
 
-              {isTyping && (
-                <div className="chat-bubble-row assistant">
-                  <div className="chat-avatar-ai">
-                    <span>A</span>
+              {/* Waiting indicator (before API responds) */}
+              {isWaitingForAPI && (
+                <div className="cmsg-row assistant">
+                  <div className="cmsg-avatar cmsg-avatar-assistant">
+                    <span className="cmsg-avatar-letter">A</span>
                   </div>
-                  <div className="chat-bubble chat-bubble-assistant">
-                    <div className="typing-dots">
-                      <span />
-                      <span />
-                      <span />
+                  <div className="cmsg-content">
+                    <div className="cmsg-header">
+                      <span className="cmsg-role-label">Aarka AI</span>
+                    </div>
+                    <div className="cmsg-body">
+                      <div className="typing-dots">
+                        <span />
+                        <span />
+                        <span />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -331,34 +606,20 @@ const AarkaChatbot = () => {
               <div ref={messagesEndRef} />
             </div>
           )}
+
+          {/* Scroll FAB */}
+          <ChatScrollFab visible={showScrollFab} onClick={scrollToBottom} />
         </div>
 
         {/* Input */}
-        <div className="chat-input-wrapper">
-          <div className="chat-input-bar">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask Aarka anything…"
-              rows={1}
-              className="chat-input"
-              disabled={isTyping}
-            />
-            <button
-              className={`chat-send-btn ${input.trim() && !isTyping ? "active" : ""}`}
-              onClick={() => sendMessage()}
-              disabled={!input.trim() || isTyping}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-              </svg>
-            </button>
-          </div>
-          <p className="chat-disclaimer">Aarka AI may produce inaccurate information. Verify critical outputs.</p>
-        </div>
+        <ChatInput
+          value={input}
+          onChange={setInput}
+          onSend={() => sendMessage()}
+          onStop={stopGenerating}
+          isStreaming={isBusy}
+          disabled={isWaitingForAPI}
+        />
       </div>
     </div>
   );

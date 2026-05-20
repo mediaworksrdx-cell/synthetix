@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Sora, Inter, Outfit, DM_Serif_Display } from "next/font/google";
 import "./globals.css";
+import "./chat.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 

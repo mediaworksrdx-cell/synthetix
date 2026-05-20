@@ -121,7 +121,7 @@ const ChatMarkdown = ({ content, isStreaming }: ChatMarkdownProps) => {
       const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
       if (headingMatch) {
         const level = headingMatch[1].length;
-        const Tag = `h${level + 2}` as keyof JSX.IntrinsicElements;
+        const Tag = `h${level + 2}` as "h3" | "h4" | "h5";
         return <Tag key={pIdx} className="cmark-heading">{renderInline(headingMatch[2])}</Tag>;
       }
 

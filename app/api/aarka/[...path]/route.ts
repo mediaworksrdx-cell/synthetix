@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Vercel serverless function config — extend timeout to maximum allowed
-// Hobby plan: 60s, Pro plan: 300s
-export const maxDuration = 300;
+// Hobby plan max duration is 60s, so we cannot exceed that without failing the build.
 
 export async function POST(
   request: NextRequest,
@@ -26,7 +24,7 @@ export async function POST(
       "Content-Type": "application/json",
     };
 
-    const authHeader = request.headers.get("Authorization");
+    const authHeader = request.headers.get("authorization") || request.headers.get("Authorization");
     if (authHeader) {
       headers["Authorization"] = authHeader;
     }

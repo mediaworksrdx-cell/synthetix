@@ -532,7 +532,7 @@ const AarkaChatbot = () => {
             <div className="chat-sidebar-brand-icon">A</div>
             <div>
               <p className="chat-sidebar-brand-name">Aarka AI</p>
-              <p className="chat-sidebar-brand-ver">v2.4 • Enterprise</p>
+              <p className="chat-sidebar-brand-ver">v2.2</p>
             </div>
           </div>
         </div>
@@ -557,7 +557,7 @@ const AarkaChatbot = () => {
           )}
           <div className="chat-topbar-title">
             <span className="chat-topbar-model">Aarka AI</span>
-            <span className="chat-topbar-badge">Enterprise</span>
+
           </div>
           {isBusy && (
             <div className="chat-topbar-status">

@@ -20,9 +20,12 @@ interface ChatMessageProps {
   isTyping?: boolean;
 }
 
+type Feedback = "up" | "down" | null;
+
 const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant }: ChatMessageProps) => {
   const [showActions, setShowActions] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback>(null);
 
   const formatTime = (date: Date) => {
     const d = new Date(date);
@@ -48,6 +51,10 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant }: ChatMes
       setTimeout(() => setCopied(false), 2000);
     });
   }, [message, onCopy]);
+
+  const handleFeedback = (type: "up" | "down") => {
+    setFeedback((prev) => (prev === type ? null : type));
+  };
 
   const displayContent = message.displayedContent ?? message.content;
 
@@ -91,9 +98,10 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant }: ChatMes
           )}
         </div>
 
-        {/* Action bar — visible on hover, only when not streaming */}
+        {/* Action bar — visible on hover, only for assistant, not while streaming */}
         {!message.isStreaming && message.role === "assistant" && (
-          <div className={`cmsg-actions ${showActions ? "visible" : ""}`}>
+          <div className={`cmsg-actions ${showActions || feedback ? "visible" : ""}`}>
+            {/* Copy */}
             <button
               className="cmsg-action-btn"
               onClick={handleCopy}
@@ -106,6 +114,31 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant }: ChatMes
               )}
             </button>
 
+            {/* Thumbs Up */}
+            <button
+              className={`cmsg-action-btn${feedback === "up" ? " cmsg-feedback-active" : ""}`}
+              onClick={() => handleFeedback("up")}
+              title="Good response"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={feedback === "up" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z" />
+                <path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" />
+              </svg>
+            </button>
+
+            {/* Thumbs Down */}
+            <button
+              className={`cmsg-action-btn${feedback === "down" ? " cmsg-feedback-active" : ""}`}
+              onClick={() => handleFeedback("down")}
+              title="Bad response"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={feedback === "down" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z" />
+                <path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17" />
+              </svg>
+            </button>
+
+            {/* Regenerate */}
             {isLastAssistant && onRegenerate && (
               <button
                 className="cmsg-action-btn"
@@ -127,3 +160,4 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant }: ChatMes
 };
 
 export default ChatMessage;
+

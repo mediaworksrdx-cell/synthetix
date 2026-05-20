@@ -25,7 +25,7 @@ interface Conversation {
 
 const generateId = () => Math.random().toString(36).substring(2, 10);
 
-const API_BASE = "http://43.204.153.162:5000";
+const API_BASE = "/api/aarka";
 
 /* ─── localStorage helpers ─── */
 const STORAGE_KEY = "aarkaai_conversations";

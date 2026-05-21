@@ -66,13 +66,51 @@ const ChatMarkdown = ({ content, isStreaming }: ChatMarkdownProps) => {
         );
       }
 
-      return <span key={i}>{renderInlineMarkdown(part.content)}</span>;
+      return \u003cspan key={i}\u003e{renderInlineMarkdown(part.content)}\u003c/span\u003e;
     });
   };
 
+  /**
+   * Merge consecutive paragraphs that are each a single ordered-list item
+   * (e.g. "1. Foo", "2. Bar") into one combined paragraph so the ordered
+   * list renderer can produce a single \u003col\u003e with correct numbering.
+   */
+  const mergeParagraphs = (paragraphs: string[]): string[] => {
+    const merged: string[] = [];
+    for (const para of paragraphs) {
+      const trimmed = para.trim();
+      if (!trimmed) continue;
+      const lines = trimmed.split("\n");
+      const isSingleOl =
+        lines.length === 1 && /^\s*\d+[.)]\s/.test(lines[0]);
+      // Also handle multi-line list items where continuation lines are indented
+      const isMultiLineOlItem =
+        lines.length > 1 &&
+        /^\s*\d+[.)]\s/.test(lines[0]) &&
+        lines.slice(1).every((l) => /^\s{2,}/.test(l) || l.trim() === "");
+      if (
+        (isSingleOl || isMultiLineOlItem) &&
+        merged.length > 0
+      ) {
+        const prevTrimmed = merged[merged.length - 1].trim();
+        const prevLines = prevTrimmed.split("\n");
+        const prevIsOl = prevLines.every(
+          (l) => /^\s*\d+[.)]\s/.test(l) || /^\s{2,}/.test(l) || l.trim() === ""
+        ) && /^\s*\d+[.)]\s/.test(prevLines[0]);
+        if (prevIsOl) {
+          merged[merged.length - 1] = prevTrimmed + "\n" + trimmed;
+          continue;
+        }
+      }
+      merged.push(trimmed);
+    }
+    return merged;
+  };
+
   const renderInlineMarkdown = (text: string) => {
-    // Split into paragraphs
-    const paragraphs = text.split(/\n\n+/);
+    // Split into paragraphs, then merge consecutive ordered-list items
+    const rawParagraphs = text.split(/\n\n+/);
+    const paragraphs = mergeParagraphs(rawParagraphs);
 
     return paragraphs.map((para, pIdx) => {
       const trimmed = para.trim();

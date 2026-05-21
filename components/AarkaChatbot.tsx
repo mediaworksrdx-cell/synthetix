@@ -336,7 +336,7 @@ const AarkaChatbot = () => {
             password: "VisitorSecurePassword123!",
             name: "Web Visitor",
           };
-          const resp = await fetch(`${API_BASE}/auth/login`, {
+          let resp = await fetch(`${API_BASE}/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(defaultUser),
@@ -346,6 +346,19 @@ const AarkaChatbot = () => {
             localStorage.setItem("aarkaai_token", data.access_token);
             setToken(data.access_token);
             return data.access_token;
+          } else {
+            // Self-heal: Try to register if login fails (e.g., database reset)
+            resp = await fetch(`${API_BASE}/auth/register`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(defaultUser),
+            });
+            if (resp.status === 200) {
+              const data = await resp.json();
+              localStorage.setItem("aarkaai_token", data.access_token);
+              setToken(data.access_token);
+              return data.access_token;
+            }
           }
         } catch { /* ignore */ }
         return null;

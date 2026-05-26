@@ -8,6 +8,8 @@ const ContactPage = () => {
   const [captchaCode, setCaptchaCode] = useState("");
   const [captchaInput, setCaptchaInput] = useState("");
   const [captchaError, setCaptchaError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -110,14 +112,48 @@ const ContactPage = () => {
     });
   }, [captchaCode]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setSubmitError("");
+
     if (captchaInput.toUpperCase() !== captchaCode) {
       setCaptchaError("Incorrect captcha code. Please try again.");
       generateCaptcha();
       return;
     }
-    setSubmitted(true);
+
+    setIsSubmitting(true);
+
+    try {
+      const formData = new FormData(e.currentTarget);
+      const name = formData.get("name") as string;
+      const email = formData.get("email") as string;
+      const company = formData.get("company") as string;
+      const message = formData.get("message") as string;
+
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, email, company, message }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to submit request.");
+      }
+
+      setSubmitted(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "An unexpected error occurred.";
+      setSubmitError(msg);
+      generateCaptcha(); // regenerate captcha on error for security
+      setCaptchaInput(""); // reset input field
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -156,6 +192,7 @@ const ContactPage = () => {
                       <input
                         required
                         type="text"
+                        name="name"
                         className="w-full bg-white/70 backdrop-blur-sm border border-white/50 p-4 rounded-lg focus:border-accent outline-none transition-colors text-sm"
                         placeholder="John Doe"
                       />
@@ -165,6 +202,7 @@ const ContactPage = () => {
                       <input
                         required
                         type="email"
+                        name="email"
                         className="w-full bg-white/70 backdrop-blur-sm border border-white/50 p-4 rounded-lg focus:border-accent outline-none transition-colors text-sm"
                         placeholder="john@enterprise.com"
                       />
@@ -174,6 +212,7 @@ const ContactPage = () => {
                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Company</label>
                     <input
                       type="text"
+                      name="company"
                       className="w-full bg-white/70 backdrop-blur-sm border border-white/50 p-4 rounded-lg focus:border-accent outline-none transition-colors text-sm"
                       placeholder="Acme Corp"
                     />
@@ -183,6 +222,7 @@ const ContactPage = () => {
                     <textarea
                       required
                       rows={5}
+                      name="message"
                       className="w-full bg-white/70 backdrop-blur-sm border border-white/50 p-4 rounded-lg focus:border-accent outline-none transition-colors text-sm resize-none"
                       placeholder="Describe your technical requirements..."
                     />
@@ -257,11 +297,25 @@ const ContactPage = () => {
                     )}
                   </div>
 
+                  {submitError && (
+                    <div className="p-4 border border-red-200 rounded-lg bg-red-50/50 backdrop-blur-sm">
+                      <p className="text-xs text-red-500 font-bold flex items-start gap-2">
+                        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0 mt-1 animate-pulse" />
+                        <span>Transmission Failed: {submitError}</span>
+                      </p>
+                    </div>
+                  )}
+
                   <button
                     type="submit"
-                    className="w-full py-4 bg-foreground text-white font-bold rounded-lg hover:-translate-y-1 transition-all shadow-xl tracking-pro uppercase text-xs"
+                    disabled={isSubmitting}
+                    className={`w-full py-4 font-bold rounded-lg transition-all shadow-xl tracking-pro uppercase text-xs ${
+                      isSubmitting
+                        ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                        : "bg-foreground text-white hover:-translate-y-1"
+                    }`}
                   >
-                    Send Message
+                    {isSubmitting ? "Transmitting..." : "Send Message"}
                   </button>
                 </form>
               )}

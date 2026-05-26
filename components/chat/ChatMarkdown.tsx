@@ -66,14 +66,14 @@ const ChatMarkdown = ({ content, isStreaming }: ChatMarkdownProps) => {
         );
       }
 
-      return \u003cspan key={i}\u003e{renderInlineMarkdown(part.content)}\u003c/span\u003e;
+      return <span key={i}>{renderInlineMarkdown(part.content)}</span>;
     });
   };
 
   /**
    * Merge consecutive paragraphs that are each a single ordered-list item
    * (e.g. "1. Foo", "2. Bar") into one combined paragraph so the ordered
-   * list renderer can produce a single \u003col\u003e with correct numbering.
+   * list renderer can produce a single <ol> with correct numbering.
    */
   const mergeParagraphs = (paragraphs: string[]): string[] => {
     const merged: string[] = [];

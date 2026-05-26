@@ -48,7 +48,7 @@ const Footer = () => {
                 Chennai, India
               </li>
               <li className="text-sm font-bold text-foreground pt-1">
-                info@synthetix.ai
+                care@synthetixanalytics.com
               </li>
             </ul>
           </div>

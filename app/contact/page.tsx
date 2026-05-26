@@ -271,16 +271,14 @@ const ContactPage = () => {
             <div className="fade-up space-y-12" style={{ transitionDelay: "0.2s" }}>
               <div>
                 <p className="section-label">CHENNAI — HQ</p>
-                <p className="text-xl font-bold mb-2" style={{ letterSpacing: "-0.02em" }}>Technological Core</p>
-                <p className="text-muted text-sm leading-relaxed">
+                <p className="text-base text-foreground font-semibold mt-3 leading-relaxed">
                   Chennai, Tamil Nadu<br />
                   India
                 </p>
               </div>
               <div>
                 <p className="section-label">DIRECT CONTACT</p>
-                <p className="text-xl font-bold mb-2" style={{ letterSpacing: "-0.02em" }}>Always Synched</p>
-                <p className="text-muted text-sm leading-relaxed">
+                <p className="text-base text-foreground font-semibold mt-3 leading-relaxed">
                   care@synthetixanalytics.com<br />
                   +91 8838202279
                 </p>

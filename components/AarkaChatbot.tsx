@@ -115,6 +115,17 @@ const AarkaChatbot = () => {
 
   const activeConv = conversations.find((c) => c.id === activeConvId)!;
 
+  // ─── Migrate default/legacy sessions to random IDs ───
+  useEffect(() => {
+    if (activeConvId === "default") {
+      const freshId = generateId();
+      setConversations((prev) =>
+        prev.map((c) => (c.id === "default" ? { ...c, id: freshId } : c))
+      );
+      setActiveConvId(freshId);
+    }
+  }, [activeConvId]);
+
   // ─── Persist conversations ───
   useEffect(() => {
     saveConversations(conversations);

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 
 interface ChatMarkdownProps {
   content: string;
@@ -180,9 +182,9 @@ const ChatMarkdown = ({ content, isStreaming }: ChatMarkdownProps) => {
   };
 
   const renderInline = (text: string): React.ReactNode[] => {
-    // Process inline markdown: bold, italic, inline code, links
+    // Process inline markdown: bold, italic, inline code, links, block/inline LaTeX math
     const tokens: React.ReactNode[] = [];
-    const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|(\[(.+?)\]\((.+?)\))/g;
+    const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|(\[(.+?)\]\((.+?)\))|(\\\[([\s\S]*?)\\\])|(\\\(([\s\S]*?)\\\))/g;
     let lastIdx = 0;
     let m;
 
@@ -212,6 +214,36 @@ const ChatMarkdown = ({ content, isStreaming }: ChatMarkdownProps) => {
             </svg>
           </a>
         );
+      } else if (m[10]) {
+        // Block LaTeX math \[ ... \]
+        try {
+          const html = katex.renderToString(m[11], { displayMode: true, throwOnError: false });
+          tokens.push(
+            <span
+              key={m.index}
+              className="cmark-block-math block my-2 overflow-x-auto text-center"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          );
+        } catch (err) {
+          console.error("KaTeX block render error:", err);
+          tokens.push(<span key={m.index} className="text-red-500">{m[10]}</span>);
+        }
+      } else if (m[12]) {
+        // Inline LaTeX math \( ... \)
+        try {
+          const html = katex.renderToString(m[13], { displayMode: false, throwOnError: false });
+          tokens.push(
+            <span
+              key={m.index}
+              className="cmark-inline-math inline-block align-middle"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          );
+        } catch (err) {
+          console.error("KaTeX inline render error:", err);
+          tokens.push(<span key={m.index} className="text-red-500">{m[12]}</span>);
+        }
       }
 
       lastIdx = m.index + m[0].length;

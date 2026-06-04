@@ -327,28 +327,20 @@ h5.cmark-heading { font-size: 14px; }
 .cwelcome-sub { font-size: 15px; color: var(--muted); max-width: 480px; line-height: 1.6; margin-bottom: 40px; }
 .cwelcome-powered { font-size: 11px; color: #94a3b8; margin-top: 32px; letter-spacing: 0.04em; }
 
-.cwelcome-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 560px; width: 100%; }
-.cwelcome-card {
-  display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px;
-  border-radius: 14px; border: 1px solid rgba(241,245,249,0.8);
-  background: rgba(255,255,255,0.65); backdrop-filter: blur(8px);
-  cursor: pointer; text-align: left; transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
-  color: var(--foreground); font-size: 13px; font-weight: 400; line-height: 1.5;
+.cwelcome-input-container {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
 }
-.cwelcome-card-icon { flex-shrink: 0; color: #F59E0B; margin-top: 1px; }
-.cwelcome-card-top {
-  display: flex; align-items: center; justify-content: space-between;
-  width: 100%; margin-bottom: 6px;
+.cwelcome-input-container .cinput-wrapper {
+  padding: 0;
+  background: transparent;
 }
-.cwelcome-card-category {
-  font-size: 10px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.06em; color: #F59E0B;
-  background: rgba(245,158,11,0.08); padding: 2px 8px;
-  border-radius: 6px;
-}
-.cwelcome-card:hover {
-  border-color: rgba(245,158,11,0.3); background: rgba(255,255,255,0.9);
-  transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+.cwelcome-input-container .cinput-bar {
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
 }
 
 /* ─── Input Bar ─── */
@@ -416,7 +408,6 @@ h5.cmark-heading { font-size: 14px; }
     display: block; position: fixed; inset: 0; top: 72px;
     background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 35;
   }
-  .cwelcome-grid { grid-template-columns: 1fr; }
   .cwelcome-title { font-size: 22px; }
   .cinput-wrapper { padding: 8px 12px 12px; }
   .cmsg-row { padding: 14px 0; }

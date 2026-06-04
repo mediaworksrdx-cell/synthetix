@@ -639,7 +639,6 @@ const AarkaChatbot = () => {
           )}
           <div className="chat-topbar-title">
             <span className="chat-topbar-model">Aarka AI</span>
-
           </div>
           {isBusy && (
             <div className="chat-topbar-status">
@@ -652,10 +651,19 @@ const AarkaChatbot = () => {
         {/* Messages */}
         <div className="chat-messages" ref={messagesContainerRef}>
           {activeConv.messages.length === 0 && !isBusy ? (
-            <ChatWelcome onSendMessage={sendMessage} />
+            <ChatWelcome>
+              <ChatInput
+                value={input}
+                onChange={setInput}
+                onSend={() => sendMessage()}
+                onStop={stopGenerating}
+                isStreaming={isBusy}
+                disabled={isWaitingForAPI}
+              />
+            </ChatWelcome>
           ) : (
             <div className="chat-messages-inner">
-              {activeConv.messages.map((msg) => (
+               {activeConv.messages.map((msg) => (
                 <ChatMessage
                   key={msg.id}
                   message={msg}
@@ -695,15 +703,17 @@ const AarkaChatbot = () => {
           <ChatScrollFab visible={showScrollFab} onClick={scrollToBottom} />
         </div>
 
-        {/* Input */}
-        <ChatInput
-          value={input}
-          onChange={setInput}
-          onSend={() => sendMessage()}
-          onStop={stopGenerating}
-          isStreaming={isBusy}
-          disabled={isWaitingForAPI}
-        />
+        {/* Input (only shown when conversation has active messages or generating) */}
+        {(activeConv.messages.length > 0 || isBusy) && (
+          <ChatInput
+            value={input}
+            onChange={setInput}
+            onSend={() => sendMessage()}
+            onStop={stopGenerating}
+            isStreaming={isBusy}
+            disabled={isWaitingForAPI}
+          />
+        )}
       </div>
     </div>
   );

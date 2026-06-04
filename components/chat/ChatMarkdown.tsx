@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { Highlight, themes } from "prism-react-renderer";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 
@@ -42,13 +43,15 @@ const ChatMarkdown = ({ content, isStreaming }: ChatMarkdownProps) => {
     return parts.map((part, i) => {
       if (part.type === "code") {
         const idx = blockIndex++;
+        const code = part.content.trimEnd();
+        const lang = part.lang || "text";
         return (
           <div key={i} className="cmark-codeblock">
             <div className="cmark-codeblock-header">
-              <span className="cmark-codeblock-lang">{part.lang}</span>
+              <span className="cmark-codeblock-lang">{lang}</span>
               <button
                 className="cmark-copy-btn"
-                onClick={() => copyCode(part.content, idx)}
+                onClick={() => copyCode(code, idx)}
               >
                 {copiedBlock === idx ? (
                   <>
@@ -63,7 +66,23 @@ const ChatMarkdown = ({ content, isStreaming }: ChatMarkdownProps) => {
                 )}
               </button>
             </div>
-            <pre className="cmark-pre"><code>{part.content.trimEnd()}</code></pre>
+            <Highlight
+              theme={themes.nightOwl}
+              code={code}
+              language={lang}
+            >
+              {({ style, tokens, getLineProps, getTokenProps }) => (
+                <pre className="cmark-pre" style={{ ...style, background: "transparent", margin: 0 }}>
+                  {tokens.map((line, lineIdx) => (
+                    <div key={lineIdx} {...getLineProps({ line })}>
+                      {line.map((token, tokenIdx) => (
+                        <span key={tokenIdx} {...getTokenProps({ token })} />
+                      ))}
+                    </div>
+                  ))}
+                </pre>
+              )}
+            </Highlight>
           </div>
         );
       }
@@ -184,7 +203,7 @@ const ChatMarkdown = ({ content, isStreaming }: ChatMarkdownProps) => {
   const renderInline = (text: string): React.ReactNode[] => {
     // Process inline markdown: bold, italic, inline code, links, block/inline LaTeX math
     const tokens: React.ReactNode[] = [];
-    const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|(\[(.+?)\]\((.+?)\))|(\\\[([\s\S]*?)\\\])|(\\\(([\s\S]*?)\\\))/g;
+    const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|\[(.+?)\]\((.+?)\)|(\\?\$\$[\s\S]*?\$\$)|(\\?\$[^$]+?\$)|(\\\[[\s\S]*?\\\])|(\\?\([\s\S]*?\\\))/g;
     let lastIdx = 0;
     let m;
 
@@ -205,8 +224,8 @@ const ChatMarkdown = ({ content, isStreaming }: ChatMarkdownProps) => {
       } else if (m[7]) {
         // Link
         tokens.push(
-          <a key={m.index} href={m[9]} target="_blank" rel="noopener noreferrer" className="cmark-link">
-            {m[8]}
+          <a key={m.index} href={m[8]} target="_blank" rel="noopener noreferrer" className="cmark-link">
+            {m[7]}
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: "inline", marginLeft: 2, verticalAlign: "middle" }}>
               <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
               <polyline points="15 3 21 3 21 9" />
@@ -214,35 +233,61 @@ const ChatMarkdown = ({ content, isStreaming }: ChatMarkdownProps) => {
             </svg>
           </a>
         );
-      } else if (m[10]) {
-        // Block LaTeX math \[ ... \]
+      } else if (m[9]) {
+        // Block LaTeX math $$ ... $$ or \[ ... \]
+        const mathContent = m[9].replace(/^\$\$|\$\$$/g, "").replace(/^\\\[|\\\]$/g, "").trim();
         try {
-          const html = katex.renderToString(m[11], { displayMode: true, throwOnError: false });
+          const html = katex.renderToString(mathContent, { displayMode: true, throwOnError: false });
           tokens.push(
             <span
               key={m.index}
-              className="cmark-block-math block my-2 overflow-x-auto text-center"
+              className="cmark-block-math"
               dangerouslySetInnerHTML={{ __html: html }}
             />
           );
         } catch (err) {
           console.error("KaTeX block render error:", err);
-          tokens.push(<span key={m.index} className="text-red-500">{m[10]}</span>);
+          tokens.push(<span key={m.index} style={{ color: "#ef4444" }}>{m[9]}</span>);
         }
-      } else if (m[12]) {
-        // Inline LaTeX math \( ... \)
+      } else if (m[10]) {
+        // Inline LaTeX math $ ... $ or \( ... \)
+        const mathContent = m[10].replace(/^\$|\$$/g, "").replace(/^\\\(|\\\)$/g, "").trim();
         try {
-          const html = katex.renderToString(m[13], { displayMode: false, throwOnError: false });
+          const html = katex.renderToString(mathContent, { displayMode: false, throwOnError: false });
           tokens.push(
             <span
               key={m.index}
-              className="cmark-inline-math inline-block align-middle"
+              className="cmark-inline-math"
               dangerouslySetInnerHTML={{ __html: html }}
             />
           );
         } catch (err) {
           console.error("KaTeX inline render error:", err);
-          tokens.push(<span key={m.index} className="text-red-500">{m[12]}</span>);
+          tokens.push(<span key={m.index} style={{ color: "#ef4444" }}>{m[10]}</span>);
+        }
+      } else if (m[11]) {
+        // Block LaTeX \[ ... \]
+        const mathContent = m[11].replace(/^\\\[|\\\]$/g, "").trim();
+        try {
+          const html = katex.renderToString(mathContent, { displayMode: true, throwOnError: false });
+          tokens.push(
+            <span key={m.index} className="cmark-block-math" dangerouslySetInnerHTML={{ __html: html }} />
+          );
+        } catch (err) {
+          console.error("KaTeX block render error:", err);
+          tokens.push(<span key={m.index} style={{ color: "#ef4444" }}>{m[11]}</span>);
+        }
+      } else if (m[12]) {
+        // Inline LaTeX \( ... \)
+        const mathContent = m[12].replace(/^\\\(|\\\)$/g, "").trim();
+        try {
+          const html = katex.renderToString(mathContent, { displayMode: false, throwOnError: false });
+          tokens.push(
+            <span key={m.index} className="cmark-inline-math" dangerouslySetInnerHTML={{ __html: html }} />
+          );
+        } catch (err) {
+          console.error("KaTeX inline render error:", err);
+          tokens.push(<span key={m.index} style={{ color: "#ef4444" }}>{m[12]}</span>);
         }
       }
 

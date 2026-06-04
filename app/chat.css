@@ -89,6 +89,30 @@ body:has(.chat-page) > main { flex: 0 0 auto; height: 100vh; overflow: hidden; }
 .chat-sidebar-brand-ver { font-size: 11px; color: var(--muted); }
 .chat-sidebar-overlay { display: none; }
 
+/* ─── Sidebar Search ─── */
+.chat-sidebar-search {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  margin: 0 8px 4px; border-radius: 10px;
+  background: rgba(0,0,0,0.03); border: 1px solid rgba(241,245,249,0.8);
+  transition: all 0.2s ease;
+}
+.chat-sidebar-search:focus-within {
+  background: rgba(255,255,255,0.6); border-color: rgba(245,158,11,0.3);
+  box-shadow: 0 2px 8px rgba(245,158,11,0.06);
+}
+.chat-sidebar-search-icon { flex-shrink: 0; color: #94a3b8; }
+.chat-sidebar-search-input {
+  flex: 1; border: none; outline: none; background: transparent;
+  font-size: 12px; font-family: 'Inter', sans-serif; color: var(--foreground);
+}
+.chat-sidebar-search-input::placeholder { color: #94a3b8; }
+.chat-sidebar-search-clear {
+  padding: 2px; border-radius: 4px; border: none; background: transparent;
+  color: #94a3b8; cursor: pointer; display: flex; align-items: center;
+  transition: all 0.15s ease;
+}
+.chat-sidebar-search-clear:hover { color: var(--foreground); background: rgba(0,0,0,0.06); }
+
 /* ─── Main Chat Area ─── */
 .chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
 
@@ -165,6 +189,23 @@ body:has(.chat-page) > main { flex: 0 0 auto; height: 100vh; overflow: hidden; }
 .cmsg-time { font-size: 11px; color: #94a3b8; }
 .cmsg-body { font-size: 14.5px; line-height: 1.7; color: var(--foreground); }
 .cmsg-user-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
+
+/* Processing time badge */
+.cmsg-processing-time {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 500; color: #F59E0B;
+  background: rgba(245,158,11,0.08); padding: 1px 7px;
+  border-radius: 6px; border: 1px solid rgba(245,158,11,0.12);
+  letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+}
+.cmsg-processing-time svg { opacity: 0.8; }
+
+/* Feedback toast */
+.cmsg-feedback-toast {
+  font-size: 11px; color: #10b981; font-weight: 500;
+  animation: toastFade 2s ease forwards;
+}
+@keyframes toastFade { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
 
 /* ─── Action Bar ─── */
 .cmsg-actions {
@@ -295,6 +336,16 @@ h5.cmark-heading { font-size: 14px; }
   color: var(--foreground); font-size: 13px; font-weight: 400; line-height: 1.5;
 }
 .cwelcome-card-icon { flex-shrink: 0; color: #F59E0B; margin-top: 1px; }
+.cwelcome-card-top {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; margin-bottom: 6px;
+}
+.cwelcome-card-category {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: #F59E0B;
+  background: rgba(245,158,11,0.08); padding: 2px 8px;
+  border-radius: 6px;
+}
 .cwelcome-card:hover {
   border-color: rgba(245,158,11,0.3); background: rgba(255,255,255,0.9);
   transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.06);

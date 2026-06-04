@@ -10,6 +10,7 @@ interface Message {
   displayedContent?: string;
   timestamp: Date;
   isStreaming?: boolean;
+  processingTime?: number;
 }
 
 interface ChatMessageProps {
@@ -18,14 +19,17 @@ interface ChatMessageProps {
   onCopy?: () => void;
   isLastAssistant?: boolean;
   isTyping?: boolean;
+  token?: string | null;
+  sessionId?: string;
 }
 
 type Feedback = "up" | "down" | null;
 
-const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant }: ChatMessageProps) => {
+const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant, token, sessionId }: ChatMessageProps) => {
   const [showActions, setShowActions] = useState(false);
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [feedbackSent, setFeedbackSent] = useState(false);
 
   const formatTime = (date: Date) => {
     const d = new Date(date);
@@ -43,6 +47,11 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant }: ChatMes
     return d.toLocaleDateString([], { month: "short", day: "numeric" });
   };
 
+  const formatProcessingTime = (seconds: number): string => {
+    if (seconds < 1) return `${Math.round(seconds * 1000)}ms`;
+    return `${seconds.toFixed(1)}s`;
+  };
+
   const handleCopy = useCallback(() => {
     const text = message.displayedContent || message.content;
     navigator.clipboard.writeText(text).then(() => {
@@ -52,9 +61,31 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant }: ChatMes
     });
   }, [message, onCopy]);
 
-  const handleFeedback = (type: "up" | "down") => {
-    setFeedback((prev) => (prev === type ? null : type));
-  };
+  const handleFeedback = useCallback(async (type: "up" | "down") => {
+    const newFeedback = feedback === type ? null : type;
+    setFeedback(newFeedback);
+
+    if (newFeedback && token) {
+      try {
+        await fetch("/api/aarka/rlhf", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            user_id: "web_visitor",
+            rating: newFeedback === "up" ? 1 : -1,
+            conversation_id: sessionId || null,
+          }),
+        });
+        setFeedbackSent(true);
+        setTimeout(() => setFeedbackSent(false), 2000);
+      } catch (err) {
+        console.error("Failed to send feedback:", err);
+      }
+    }
+  }, [feedback, token, sessionId]);
 
   const displayContent = message.displayedContent ?? message.content;
 
@@ -82,9 +113,17 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant }: ChatMes
           <span className="cmsg-role-label">
             {message.role === "assistant" ? "Aarka AI" : "You"}
           </span>
-          <span className="cmsg-time">
+          <span className="cmsg-time" suppressHydrationWarning>
             {formatDate(message.timestamp)} · {formatTime(message.timestamp)}
           </span>
+          {message.role === "assistant" && message.processingTime && !message.isStreaming && (
+            <span className="cmsg-processing-time" title="Response generation time">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+              {formatProcessingTime(message.processingTime)}
+            </span>
+          )}
         </div>
 
         <div className="cmsg-body">
@@ -152,6 +191,11 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant }: ChatMes
                 </svg>
               </button>
             )}
+
+            {/* Feedback sent toast */}
+            {feedbackSent && (
+              <span className="cmsg-feedback-toast">Thanks!</span>
+            )}
           </div>
         )}
       </div>
@@ -160,4 +204,3 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant }: ChatMes
 };
 
 export default ChatMessage;
-

@@ -14,6 +14,7 @@ interface Message {
   displayedContent?: string;
   timestamp: Date;
   isStreaming?: boolean;
+  processingTime?: number;
 }
 
 interface Conversation {
@@ -84,28 +85,16 @@ const formatConvTime = (date: Date) => {
 
 /* ─── Component ─── */
 const AarkaChatbot = () => {
-  const [conversations, setConversations] = useState<Conversation[]>(() => {
-    const loaded = loadConversations();
-    if (loaded.length > 0) return loaded;
-    return [
-      {
-        id: "default",
-        title: "New conversation",
-        messages: [],
-        createdAt: new Date(),
-      },
-    ];
-  });
-  const [activeConvId, setActiveConvId] = useState(() => {
-    const loaded = loadConversations();
-    return loaded.length > 0 ? loaded[0].id : "default";
-  });
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string>("");
+  const [mounted, setMounted] = useState(false);
   const [input, setInput] = useState("");
   const [isWaitingForAPI, setIsWaitingForAPI] = useState(false);
   const [isStreamingText, setIsStreamingText] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showScrollFab, setShowScrollFab] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -113,23 +102,51 @@ const AarkaChatbot = () => {
   const streamingMsgIdRef = useRef<string | null>(null);
   const apiAbortRef = useRef<AbortController | null>(null);
 
-  const activeConv = conversations.find((c) => c.id === activeConvId)!;
+  // Load conversations and mount
+  useEffect(() => {
+    const loaded = loadConversations();
+    if (loaded.length > 0) {
+      setConversations(loaded);
+      setActiveConvId(loaded[0].id);
+    } else {
+      const defaultId = generateId();
+      setConversations([
+        {
+          id: defaultId,
+          title: "New conversation",
+          messages: [],
+          createdAt: new Date(),
+        },
+      ]);
+      setActiveConvId(defaultId);
+    }
+    setMounted(true);
+  }, []);
+
+  const activeConv = conversations.find((c) => c.id === activeConvId) || {
+    id: "",
+    title: "Loading...",
+    messages: [],
+    createdAt: new Date(),
+  };
 
   // ─── Migrate default/legacy sessions to random IDs ───
   useEffect(() => {
-    if (activeConvId === "default") {
+    if (mounted && activeConvId === "default") {
       const freshId = generateId();
       setConversations((prev) =>
         prev.map((c) => (c.id === "default" ? { ...c, id: freshId } : c))
       );
       setActiveConvId(freshId);
     }
-  }, [activeConvId]);
+  }, [activeConvId, mounted]);
 
   // ─── Persist conversations ───
   useEffect(() => {
-    saveConversations(conversations);
-  }, [conversations]);
+    if (mounted) {
+      saveConversations(conversations);
+    }
+  }, [conversations, mounted]);
 
   // ─── Auth ───
   useEffect(() => {
@@ -397,6 +414,7 @@ const AarkaChatbot = () => {
             displayedContent: "",
             timestamp: new Date(),
             isStreaming: true,
+            processingTime: data.processing_time || undefined,
           };
 
           setConversations((prev) =>
@@ -497,6 +515,16 @@ const AarkaChatbot = () => {
 
   const isBusy = isWaitingForAPI || isStreamingText;
 
+  if (!mounted) {
+    return (
+      <div className="chat-container">
+        <div className="chat-loading-screen" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', width: '100%', color: '#94a3b8' }}>
+          Loading Aarka AI...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="chat-container">
       {/* ─── Sidebar ─── */}
@@ -517,8 +545,38 @@ const AarkaChatbot = () => {
           </button>
         </div>
 
+        {/* Search */}
+        <div className="chat-sidebar-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="chat-sidebar-search-icon">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="text"
+            className="chat-sidebar-search-input"
+            placeholder="Search conversations…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button className="chat-sidebar-search-clear" onClick={() => setSearchQuery("")}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
+        </div>
+
         <div className="chat-sidebar-list">
-          {conversations.map((conv) => (
+          {conversations
+            .filter((conv) => {
+              if (!searchQuery.trim()) return true;
+              const q = searchQuery.toLowerCase();
+              if (conv.title.toLowerCase().includes(q)) return true;
+              return conv.messages.some((m) => m.content.toLowerCase().includes(q));
+            })
+            .map((conv) => (
             <div
               key={conv.id}
               className={`chat-sidebar-item ${conv.id === activeConvId ? "active" : ""}`}
@@ -603,6 +661,8 @@ const AarkaChatbot = () => {
                   message={msg}
                   onRegenerate={regenerateLastResponse}
                   isLastAssistant={msg.id === lastAssistantId}
+                  token={token}
+                  sessionId={activeConvId}
                 />
               ))}
 

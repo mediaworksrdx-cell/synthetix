@@ -27,6 +27,7 @@ interface Conversation {
 const generateId = () => Math.random().toString(36).substring(2, 10);
 
 const API_BASE = "/api/aarka";
+const BACKEND_DIRECT = "http://43.204.153.162:5000";
 
 /* ─── localStorage helpers ─── */
 const STORAGE_KEY = "aarkaai_conversations";
@@ -343,18 +344,17 @@ const AarkaChatbot = () => {
       apiAbortRef.current = abortCtrl;
 
       const makePromptRequest = async (authToken: string) => {
-        return fetch(`${API_BASE}/prompt`, {
+        // Call backend directly to bypass Vercel's 60s Hobby plan function timeout.
+        // The LLM can take 60-200+ seconds for complex queries.
+        return fetch(`${BACKEND_DIRECT}/prompt`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            // x-auth-token bypasses Vercel edge stripping of Authorization header
-            "x-auth-token": `Bearer ${authToken}`,
+            "Authorization": `Bearer ${authToken}`,
           },
           body: JSON.stringify({
             query: messageText,
             session_id: activeConvId,
-            // _token in body is a fallback for old browser caches that ignore the header fix
-            _token: authToken,
           }),
           signal: abortCtrl.signal,
         });

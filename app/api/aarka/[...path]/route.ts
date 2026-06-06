@@ -10,10 +10,17 @@ function buildHeaders(request: NextRequest): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
+  // Vercel's edge network strips the standard Authorization header.
+  // We accept it via x-auth-token (custom header) as a bypass.
   const auth =
+    request.headers.get("x-auth-token") ||
     request.headers.get("authorization") ||
     request.headers.get("Authorization");
-  if (auth) headers["Authorization"] = auth;
+  if (auth) {
+    // Ensure we always forward it in the standard form to the backend
+    const token = auth.startsWith("Bearer ") ? auth : `Bearer ${auth}`;
+    headers["Authorization"] = token;
+  }
   return headers;
 }
 

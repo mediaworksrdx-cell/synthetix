@@ -71,7 +71,8 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant, token, se
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            // Use x-auth-token to bypass Vercel edge stripping Authorization header
+            "x-auth-token": `Bearer ${token}`,
           },
           body: JSON.stringify({
             user_id: "web_visitor",

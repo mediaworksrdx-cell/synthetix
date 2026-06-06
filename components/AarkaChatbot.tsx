@@ -347,7 +347,8 @@ const AarkaChatbot = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${authToken}`,
+            // Use x-auth-token to bypass Vercel edge stripping Authorization header
+            "x-auth-token": `Bearer ${authToken}`,
           },
           body: JSON.stringify({
             query: messageText,

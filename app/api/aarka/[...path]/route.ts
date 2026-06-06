@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // ─── Vercel max function duration (Pro = 300s, Hobby = 60s max) ───────────────
-// Set to 60 to stay within Hobby plan limits. For Pro plan you can raise to 300.
-export const maxDuration = 60;
+// Set to 300 for Vercel Pro plan — allows long LLM inference responses.
+export const maxDuration = 300;
 
 const BACKEND = "http://43.204.153.162:5000";
 
@@ -48,9 +48,9 @@ export async function POST(
       // empty body — that's fine
     }
 
-    // 55s abort so we always reply before Vercel kills us at 60s
+    // 290s abort so we always reply before Vercel kills us at 300s (Pro plan)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 55_000);
+    const timeoutId = setTimeout(() => controller.abort(), 290_000);
 
     const response = await fetch(targetUrl, {
       method: "POST",
@@ -92,7 +92,7 @@ export async function GET(
     const targetUrl = `${BACKEND}/${path.join("/")}`;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
 
     const response = await fetch(targetUrl, {
       method: "GET",

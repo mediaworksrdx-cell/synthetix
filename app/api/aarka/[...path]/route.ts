@@ -6,18 +6,19 @@ export const maxDuration = 60;
 
 const BACKEND = "http://43.204.153.162:5000";
 
-function buildHeaders(request: NextRequest): Record<string, string> {
+function buildHeaders(request: NextRequest, bodyToken?: string): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  // Vercel's edge network strips the standard Authorization header.
-  // We accept it via x-auth-token (custom header) as a bypass.
+  // Priority: 1) x-auth-token header (our fix for Vercel edge stripping)
+  //           2) standard authorization header (if not stripped)
+  //           3) _token field in request body (fallback for old browser cache)
   const auth =
     request.headers.get("x-auth-token") ||
     request.headers.get("authorization") ||
-    request.headers.get("Authorization");
+    request.headers.get("Authorization") ||
+    bodyToken;
   if (auth) {
-    // Ensure we always forward it in the standard form to the backend
     const token = auth.startsWith("Bearer ") ? auth : `Bearer ${auth}`;
     headers["Authorization"] = token;
   }
@@ -34,8 +35,15 @@ export async function POST(
     const targetUrl = `${BACKEND}/${path.join("/")}`;
 
     let body: string | undefined;
+    let bodyToken: string | undefined;
     try {
-      body = JSON.stringify(await request.json());
+      const parsed = await request.json();
+      // Extract _token from body if present (fallback when Authorization header is stripped)
+      if (parsed._token) {
+        bodyToken = parsed._token;
+        delete parsed._token; // Don't forward the _token field to the backend
+      }
+      body = JSON.stringify(parsed);
     } catch {
       // empty body — that's fine
     }
@@ -46,7 +54,7 @@ export async function POST(
 
     const response = await fetch(targetUrl, {
       method: "POST",
-      headers: buildHeaders(request),
+      headers: buildHeaders(request, bodyToken),
       body,
       signal: controller.signal,
     });

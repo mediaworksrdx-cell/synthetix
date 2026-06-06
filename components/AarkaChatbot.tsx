@@ -347,12 +347,14 @@ const AarkaChatbot = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            // Use x-auth-token to bypass Vercel edge stripping Authorization header
+            // x-auth-token bypasses Vercel edge stripping of Authorization header
             "x-auth-token": `Bearer ${authToken}`,
           },
           body: JSON.stringify({
             query: messageText,
             session_id: activeConvId,
+            // _token in body is a fallback for old browser caches that ignore the header fix
+            _token: authToken,
           }),
           signal: abortCtrl.signal,
         });

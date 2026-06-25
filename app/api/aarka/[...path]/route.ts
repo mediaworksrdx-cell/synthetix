@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import http from "http";
 
-// ─── Vercel max function duration (Pro = 300s, Hobby = 60s max) ───────────────
-// Set to 300 for Vercel Pro plan — allows long LLM inference responses.
-export const maxDuration = 300;
-
-const BACKEND = "http://43.204.153.162:5000";
+const BACKEND = process.env.AARKAAI_BACKEND_URL || "http://194.68.245.29:5000";
+const BACKEND_URL = new URL(BACKEND);
 
 function buildHeaders(request: NextRequest, bodyToken?: string): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  // Priority: 1) x-auth-token header (our fix for Vercel edge stripping)
-  //           2) standard authorization header (if not stripped)
-  //           3) _token field in request body (fallback for old browser cache)
   const auth =
     request.headers.get("x-auth-token") ||
     request.headers.get("authorization") ||
@@ -32,52 +27,136 @@ export async function POST(
 ) {
   try {
     const { path } = await params;
-    const targetUrl = `${BACKEND}/${path.join("/")}`;
+    const targetPath = `/${path.join("/")}`;
+
+    const contentType = request.headers.get("content-type") || "";
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const auth =
+        request.headers.get("x-auth-token") ||
+        request.headers.get("authorization") ||
+        request.headers.get("Authorization");
+
+      const backendHeaders: Record<string, string> = {};
+      if (auth) {
+        backendHeaders["Authorization"] = auth.startsWith("Bearer ") ? auth : `Bearer ${auth}`;
+      }
+
+      const response = await fetch(`${BACKEND}/upload`, {
+        method: "POST",
+        headers: backendHeaders,
+        body: formData,
+      });
+
+      const data = await response.json();
+      return NextResponse.json(data, { status: response.status });
+    }
 
     let body: string | undefined;
     let bodyToken: string | undefined;
     try {
       const parsed = await request.json();
-      // Extract _token from body if present (fallback when Authorization header is stripped)
       if (parsed._token) {
         bodyToken = parsed._token;
-        delete parsed._token; // Don't forward the _token field to the backend
+        delete parsed._token;
       }
       body = JSON.stringify(parsed);
     } catch {
       // empty body — that's fine
     }
 
-    // 290s abort so we always reply before Vercel kills us at 300s (Pro plan)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 290_000);
+    const headers = buildHeaders(request, bodyToken);
 
-    const response = await fetch(targetUrl, {
-      method: "POST",
-      headers: buildHeaders(request, bodyToken),
-      body,
-      signal: controller.signal,
+    return new Promise<NextResponse>((resolve, reject) => {
+      const req = http.request(
+        {
+          hostname: BACKEND_URL.hostname,
+          port: BACKEND_URL.port ? parseInt(BACKEND_URL.port) : 80,
+          path: targetPath,
+          method: "POST",
+          headers: headers,
+        },
+        (res) => {
+          const contentType = res.headers["content-type"];
+          if (contentType && contentType.includes("text/event-stream")) {
+            // Convert Node.js IncomingMessage response to a ReadableStream
+            let isClosed = false;
+            const stream = new ReadableStream({
+              start(controller) {
+                res.on("data", (chunk) => {
+                  if (isClosed) return;
+                  try {
+                    controller.enqueue(chunk);
+                  } catch (err) {
+                    isClosed = true;
+                  }
+                });
+                res.on("end", () => {
+                  if (isClosed) return;
+                  isClosed = true;
+                  try {
+                    controller.close();
+                  } catch (err) {}
+                });
+                res.on("error", (err) => {
+                  if (isClosed) return;
+                  isClosed = true;
+                  try {
+                    controller.error(err);
+                  } catch (err) {}
+                });
+              },
+              cancel() {
+                isClosed = true;
+                res.destroy();
+              }
+            });
+            resolve(
+              new NextResponse(stream, {
+                status: res.statusCode,
+                headers: {
+                  "Content-Type": "text/event-stream",
+                  "Cache-Control": "no-cache, no-transform",
+                  "Connection": "keep-alive",
+                },
+              })
+            );
+          } else {
+            // Buffer JSON/text responses
+            let data = "";
+            res.on("data", (chunk) => {
+              data += chunk;
+            });
+            res.on("end", () => {
+              try {
+                const parsed = JSON.parse(data);
+                resolve(NextResponse.json(parsed, { status: res.statusCode }));
+              } catch {
+                resolve(new NextResponse(data, { status: res.statusCode }));
+              }
+            });
+          }
+        }
+      );
+
+      req.on("error", (err) => {
+        console.error("Proxy POST HTTP error:", err.message);
+        reject(err);
+      });
+
+      if (body) {
+        req.write(body);
+      }
+      req.end();
     });
-
-    clearTimeout(timeoutId);
-
-    const responseData = await response.json();
-    return NextResponse.json(responseData, { status: response.status });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("Proxy POST error:", message);
-
-    const isTimeout =
-      message.toLowerCase().includes("abort") ||
-      message.toLowerCase().includes("timeout");
-
+    console.error("Proxy POST handler error:", message);
     return NextResponse.json(
       {
-        error: isTimeout
-          ? "Aarka AI took too long to respond. Please try again — complex questions may need a moment."
-          : "Failed to connect to the Aarka AI backend server.",
+        error: "Failed to connect to the Aarka AI backend server: " + message,
       },
-      { status: isTimeout ? 504 : 502 }
+      { status: 502 }
     );
   }
 }

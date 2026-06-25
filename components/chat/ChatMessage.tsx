@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import ChatMarkdown from "./ChatMarkdown";
+import { exportAsPDF, exportAsDOCX } from "../../utils/exportDocument";
 
 interface Message {
   id: string;
@@ -21,15 +22,17 @@ interface ChatMessageProps {
   isTyping?: boolean;
   token?: string | null;
   sessionId?: string;
+  onCreateDocument?: (type: string) => void;
 }
 
 type Feedback = "up" | "down" | null;
 
-const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant, token, sessionId }: ChatMessageProps) => {
+const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant, token, sessionId, onCreateDocument }: ChatMessageProps) => {
   const [showActions, setShowActions] = useState(false);
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [showDocOptions, setShowDocOptions] = useState(false);
 
   const formatTime = (date: Date) => {
     const d = new Date(date);
@@ -177,6 +180,80 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant, token, se
                 <path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17" />
               </svg>
             </button>
+
+            {/* Create Document Popover */}
+            <div style={{ position: "relative", display: "inline-block" }}>
+              <button
+                className={`cmsg-action-btn${showDocOptions ? " cmsg-feedback-active" : ""}`}
+                onClick={() => setShowDocOptions(!showDocOptions)}
+                title="Export as document"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="12" y1="18" x2="12" y2="12" />
+                  <line x1="9" y1="15" x2="15" y2="15" />
+                </svg>
+                <span style={{ marginLeft: "4px", fontSize: "11px" }}>Export</span>
+              </button>
+
+              {showDocOptions && (
+                <div 
+                  style={{
+                    position: "absolute",
+                    bottom: "100%",
+                    left: "0",
+                    marginBottom: "6px",
+                    background: "white",
+                    border: "1px solid rgba(245,158,11,0.2)",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.06)",
+                    zIndex: 50,
+                    display: "flex",
+                    flexDirection: "column",
+                    minWidth: "140px",
+                    padding: "4px 0",
+                    overflow: "hidden"
+                  }}
+                >
+                  {[
+                    { label: "📄  PDF Document", value: "PDF", desc: "Print-ready format" },
+                    { label: "📝  Word Document", value: "DOCX", desc: "Editable .doc file" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      style={{
+                        padding: "8px 14px",
+                        background: "transparent",
+                        border: "none",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        color: "#334155",
+                        fontFamily: "Inter, sans-serif",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "1px",
+                        transition: "background 0.15s ease"
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(245,158,11,0.08)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                      onClick={() => {
+                        const content = message.displayedContent || message.content;
+                        if (opt.value === "PDF") {
+                          exportAsPDF(content);
+                        } else {
+                          exportAsDOCX(content);
+                        }
+                        setShowDocOptions(false);
+                      }}
+                    >
+                      <span style={{ fontSize: "12px", fontWeight: 500 }}>{opt.label}</span>
+                      <span style={{ fontSize: "9px", color: "#94a3b8", marginTop: "1px" }}>{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Regenerate */}
             {isLastAssistant && onRegenerate && (

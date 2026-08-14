@@ -6,6 +6,8 @@ import Image from "next/image";
 
 const ProductsPage = () => {
   useEffect(() => {
+    document.title = "Products & Systems | Synthetix Analytics";
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {

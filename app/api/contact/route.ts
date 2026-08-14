@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { name, email, company, message } = await request.json();
@@ -154,19 +163,19 @@ export async function POST(request: NextRequest) {
               <table class="table-container">
                 <tr>
                   <td class="label">Full Name</td>
-                  <td class="value">${name}</td>
+                  <td class="value">${escapeHtml(name)}</td>
                 </tr>
                 <tr>
                   <td class="label">Email Address</td>
-                  <td class="value"><a href="mailto:${email}" style="color: #2563eb; text-decoration: none;">${email}</a></td>
+                  <td class="value"><a href="mailto:${escapeHtml(email)}" style="color: #2563eb; text-decoration: none;">${escapeHtml(email)}</a></td>
                 </tr>
                 <tr>
                   <td class="label">Company</td>
-                  <td class="value">${company || "Not Specified"}</td>
+                  <td class="value">${escapeHtml(company || "Not Specified")}</td>
                 </tr>
               </table>
               <div class="label" style="margin-bottom: 8px;">Message Details</div>
-              <div class="message-box">${message}</div>
+              <div class="message-box">${escapeHtml(message)}</div>
             </div>
             <div class="footer">
               Institutional Grade Engineering • Secured Gateway
@@ -180,8 +189,8 @@ export async function POST(request: NextRequest) {
     const mailOptions = {
       from: `"Synthetix Contact Portal" <${smtpUser}>`, // SMTP authenticated sender
       to: "care@synthetixanalytics.com", // Recipient
-      replyTo: `"${name}" <${email}>`, // Click reply to directly email the customer
-      subject: `[INQUIRY] ${name} - ${company || "New Inquiry"}`,
+      replyTo: `"${escapeHtml(name)}" <${escapeHtml(email)}>`, // Click reply to directly email the customer
+      subject: `[INQUIRY] ${escapeHtml(name)} - ${escapeHtml(company || "New Inquiry")}`,
       text: `New Contact Submission:\n\nName: ${name}\nEmail: ${email}\nCompany: ${company || "N/A"}\n\nMessage:\n${message}`,
       html: htmlContent,
     };

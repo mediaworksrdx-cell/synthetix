@@ -115,7 +115,7 @@ const ChatMessage = ({ message, onRegenerate, onCopy, isLastAssistant, token, se
       <div className="cmsg-content">
         <div className="cmsg-header">
           <span className="cmsg-role-label">
-            {message.role === "assistant" ? "Aarka AI" : "You"}
+            {message.role === "assistant" ? "Aarka AI 2.0" : "You"}
           </span>
           <span className="cmsg-time" suppressHydrationWarning>
             {formatDate(message.timestamp)} · {formatTime(message.timestamp)}

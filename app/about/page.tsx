@@ -6,6 +6,8 @@ import Image from "next/image";
 
 const AboutPage = () => {
   useEffect(() => {
+    document.title = "About Us | Synthetix Analytics";
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -61,8 +63,8 @@ const AboutPage = () => {
           {/* Depth Overlays — Blending to Page Background */}
           <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-10" />
           
-          {/* Subtle tech patterns */}
-          <div className="absolute inset-0 opacity-10 mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] z-10" />
+          {/* Subtle depth texture — self-contained, no external dependency */}
+          <div className="absolute inset-0 opacity-[0.04] mix-blend-overlay z-10" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.03) 10px, rgba(0,0,0,0.03) 11px)' }} />
         </div>
       </section>
 

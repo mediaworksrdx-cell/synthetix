@@ -5,11 +5,11 @@ import subprocess
 import time
 
 # ─── Configuration ────────────────────────────────────────────────────────────
-PEM_KEY = r"C:\Users\daarv\Downloads\aarkaai3b.pem"
-HOST = "3.223.192.194"
+PEM_KEY = r"C:\Users\daarv\Downloads\aarkaai7b.pem"
+HOST = "16.170.206.243"
 PORT = 22
-USER = "ec2-user"
-REMOTE_DIR = "/workspace/synthetix-site"
+USER = "ubuntu"
+REMOTE_DIR = "/home/ubuntu/synthetix-site"
 ZIP_NAME = "site_update.zip"
 
 STANDALONE_DIR = "./.next/standalone"
@@ -53,7 +53,7 @@ with zipfile.ZipFile(ZIP_NAME, "w", zipfile.ZIP_DEFLATED) as zipf:
 print(f"Packaging complete. Created {ZIP_NAME}")
 
 # Shell command to bootstrap deployment on remote server
-remote_commands = f"cd /workspace && rm -rf {REMOTE_DIR}/.next {REMOTE_DIR}/public && unzip -o {ZIP_NAME} -d {REMOTE_DIR} && rm -f {ZIP_NAME} && bash {REMOTE_DIR}/remote_deploy_site.sh && rm -f {REMOTE_DIR}/remote_deploy_site.sh"
+remote_commands = f"cd /home/ubuntu && unzip -o {ZIP_NAME} -d {REMOTE_DIR} && rm -f {ZIP_NAME} && pm2 restart synthetix-site"
 
 # ─── Step 3: Upload ZIP to remote server ─────────────────────────────────────
 print("\nStep 3: Uploading ZIP to remote server...")
@@ -64,7 +64,7 @@ scp_cmd = [
     "-o", "StrictHostKeyChecking=no",
     "-o", "BatchMode=yes",
     ZIP_NAME,
-    f"{USER}@{HOST}:/workspace/"
+    f"{USER}@{HOST}:/home/ubuntu/"
 ]
 print("Running SCP command...")
 result = subprocess.run(scp_cmd, capture_output=True, text=True, encoding="utf-8")

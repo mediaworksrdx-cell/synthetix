@@ -6,6 +6,8 @@ import { useEffect } from "react";
 
 const ServicesPage = () => {
   useEffect(() => {
+    document.title = "Services | Synthetix Analytics";
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {

@@ -3,13 +3,14 @@
    ═══════════════════════════════════════════════════════════ */
 
 .chat-page {
-  height: calc(100vh - 112px);
+  height: calc(100dvh - 112px);
+  min-height: -webkit-fill-available;
   overflow: hidden;
   position: relative;
   width: 100%;
 }
 body:has(.chat-page) footer { display: none; }
-body:has(.chat-page) > main { flex: 0 0 auto; height: 100vh; overflow: hidden; }
+body:has(.chat-page) > main { flex: 0 0 auto; height: 100dvh; overflow: hidden; }
 
 /* ─── Container ─── */
 .chat-container {
@@ -438,18 +439,48 @@ h5.cmark-heading { font-size: 14px; }
 
 /* ─── Mobile Responsive ─── */
 @media (max-width: 768px) {
+  .chat-page {
+    height: calc(100dvh - 96px);
+  }
+
   .chat-sidebar {
-    position: fixed; top: 72px; left: 0; bottom: 0;
+    position: fixed; top: 96px; left: 0; bottom: 0;
     transform: translateX(-100%); z-index: 40;
+    width: 85vw; max-width: 320px;
   }
   .chat-sidebar.open { transform: translateX(0); }
   .chat-sidebar-overlay {
-    display: block; position: fixed; inset: 0; top: 72px;
+    display: block; position: fixed; inset: 0; top: 96px;
     background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 35;
   }
-  .cwelcome-title { font-size: 22px; }
-  .cinput-wrapper { padding: 8px 12px 12px; }
-  .cmsg-row { padding: 14px 0; }
+  .cwelcome-title { font-size: 20px; line-height: 1.25; }
+  .cinput-wrapper {
+    padding: 8px 12px max(12px, env(safe-area-inset-bottom, 12px));
+  }
+  .cmsg-row { padding: 12px 0; }
+
+  /* Skill Studio Mobile Stack */
+  .skill-studio {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .skill-grid {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  .skill-editor {
+    grid-template-columns: 1fr;
+    height: auto;
+    gap: 16px;
+  }
+
+  .chat-sidebar-close,
+  .chat-modal-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 /* ─── Premium Attachment & Mic UI ─── */
@@ -1228,7 +1259,7 @@ h5.cmark-heading { font-size: 14px; }
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: linear-gradient(135deg, rgba(255, 24beb, 230, 0.2) 0%, rgba(243, 244, 246, 0.4) 100%);
+  background: linear-gradient(135deg, rgba(255, 248, 230, 0.2) 0%, rgba(243, 244, 246, 0.4) 100%);
   font-family: 'Inter', sans-serif;
   color: #1e293b;
 }
@@ -1437,6 +1468,30 @@ h5.cmark-heading { font-size: 14px; }
   background: rgba(0, 0, 0, 0.2);
   border-color: rgba(255, 255, 255, 0.1);
   color: #f1f5f9;
+}
+
+/* ─── Model Selector Pill ─── */
+.cinput-model-select {
+  background: rgba(245, 158, 11, 0.12) !important;
+  color: #d97706 !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+  border-radius: 20px !important;
+  padding: 6px 12px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  outline: none !important;
+  margin-right: 6px !important;
+  transition: all 0.2s ease !important;
+}
+.cinput-model-select:hover {
+  background: rgba(245, 158, 11, 0.2) !important;
+  border-color: rgba(245, 158, 11, 0.5) !important;
+}
+.cinput-model-select option {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 8px !important;
 }
 .dark-theme .skill-preview {
   background: #1e293b;

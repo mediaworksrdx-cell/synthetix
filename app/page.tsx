@@ -6,6 +6,8 @@ import Image from "next/image";
 
 const Home = () => {
   useEffect(() => {
+    document.title = "Synthetix Analytics | Engineering Systems. AI. Innovation.";
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -26,9 +28,9 @@ const Home = () => {
   return (
     <div className="flex flex-col w-full bg-transparent overflow-hidden">
       {/* ═══ Hero Section ═══ */}
-      <section className="relative pt-32 pb-20">
+      <section className="relative pt-10 md:pt-32 pb-10 md:pb-20">
         <div className="container relative z-10">
-          <div className="grid md:grid-cols-2 gap-16 items-center">
+          <div className="grid md:grid-cols-2 gap-8 md:gap-16 items-center">
             <div className="fade-up">
               <p className="section-label">SYNTHETIX ANALYTICS</p>
               <h1 className="hero-title">
@@ -60,6 +62,7 @@ const Home = () => {
                   alt="Abstract technology visualization"
                   fill
                   className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 50vw"
                   priority
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-foreground/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl" />
@@ -82,6 +85,7 @@ const Home = () => {
                   alt="Global impact and interconnected systems"
                   fill
                   className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 50vw"
                 />
               </div>
             </div>
@@ -122,6 +126,7 @@ const Home = () => {
                   alt="Futuristic vision of innovation"
                   fill
                   className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 50vw"
                 />
               </div>
             </div>
@@ -168,7 +173,7 @@ const Home = () => {
             <h2 className="section-title">Our Approach.</h2>
           </div>
 
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {[
               { title: "Engineering-first", desc: "Every solution begins with rigorous engineering discipline and architectural excellence.", num: "01" },
               { title: "Solution-driven", desc: "We solve real challenges — not chase trends. Every product starts from a genuine need.", num: "02" },
@@ -204,7 +209,7 @@ const Home = () => {
             ].map((product, i) => (
               <div key={i} className="fade-up bg-white/70 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/50 hover:-translate-y-2 hover:shadow-xl transition-all duration-300 group" style={{ transitionDelay: `${i * 0.1}s` }}>
                 <div className="aspect-[5/3] overflow-hidden relative">
-                  <Image src={product.img} alt={product.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <Image src={product.img} alt={product.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500" sizes="(max-width: 768px) 100vw, 33vw" />
                 </div>
                 <div className="p-6">
                   <p className="text-[11px] font-bold text-accent uppercase tracking-pro mb-1">{product.tag}</p>
@@ -227,6 +232,7 @@ const Home = () => {
                   alt="Aarka AI intelligence system"
                   fill
                   className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 50vw"
                 />
               </div>
             </div>

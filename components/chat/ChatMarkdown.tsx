@@ -641,9 +641,12 @@ const ChatMarkdown = ({ content, isStreaming }: ChatMarkdownProps) => {
         // Inline code
         tokens.push(<code key={m.index} className="cmark-inline-code">{m[9]}</code>);
       } else if (m[10]) {
-        // Link
+        // Link — sanitize href to prevent javascript: XSS
+        const rawHref = m[11] || '';
+        const safeProt = /^(https?:\/\/|mailto:|tel:|\/)/.test(rawHref.trim());
+        const safeHref = safeProt ? rawHref : '#';
         tokens.push(
-          <a key={m.index} href={m[11]} target="_blank" rel="noopener noreferrer" className="cmark-link">
+          <a key={m.index} href={safeHref} target="_blank" rel="noopener noreferrer" className="cmark-link">
             {m[10]}
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: "inline", marginLeft: 2, verticalAlign: "middle" }}>
               <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />

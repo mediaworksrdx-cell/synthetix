@@ -9,28 +9,62 @@ interface ChatInputProps {
   onStop: () => void;
   isStreaming: boolean;
   disabled: boolean;
+  selectedModel?: string;
+  onModelChange?: (model: string) => void;
 }
 
-const ChatInput = ({ value, onChange, onSend, onStop, isStreaming, disabled }: ChatInputProps) => {
+const MODELS = [
+  { group: "Aarka AI", items: [
+    { id: "aarkaa-2.0-high", label: "Aarka 2.0 (High)", tag: "Deep Reasoning", icon: "⚡" },
+    { id: "aarkaa-2.0-medium", label: "Aarka 2.0 (Medium)", tag: "Balanced", icon: "⚡" },
+    { id: "aarkaa-2.0-low", label: "Aarka 2.0 (Low)", tag: "Fast Response", icon: "⚡" },
+  ]},
+  { group: "Google Gemini", items: [
+    { id: "gemini-3.5-flash-high", label: "Gemini 3.5 Flash (High)", tag: "Fast", icon: "✨" },
+    { id: "gemini-3.5-flash-medium", label: "Gemini 3.5 Flash (Medium)", tag: "Fast", icon: "✨" },
+    { id: "gemini-3.5-flash-low", label: "Gemini 3.5 Flash (Low)", tag: "Fast", icon: "✨" },
+  ]},
+  { group: "Anthropic Claude", items: [
+    { id: "claude-sonnet-4.6", label: "Claude Sonnet 4.6", tag: "Thinking", icon: "🧠" },
+    { id: "claude-opus-4.6", label: "Claude Opus 4.6", tag: "Thinking", icon: "🧠" },
+  ]},
+  { group: "OpenAI / OSS", items: [
+    { id: "gpt-oss-120b", label: "GPT-OSS 120B", tag: "Medium", icon: "🤖" },
+  ]},
+];
+
+function getModelLabel(id: string): string {
+  for (const group of MODELS) {
+    for (const m of group.items) {
+      if (m.id === id) return `${m.icon} ${m.label}`;
+    }
+  }
+  return "⚡ Aarka 2.0 (High)";
+}
+
+const ChatInput = ({ value, onChange, onSend, onStop, isStreaming, disabled, selectedModel = "aarkaa-7b", onModelChange }: ChatInputProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+  const modelMenuRef = useRef<HTMLDivElement>(null);
+
   const [stagedFiles, setStagedFiles] = useState<{ name: string; path: string }[]>([]);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [showModelMenu, setShowModelMenu] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  // Close attach menu on click outside
+  // Close menus on click outside
   useEffect(() => {
     const clickOutside = (e: MouseEvent) => {
-      if (showAttachMenu) {
-        setShowAttachMenu(false);
+      if (showAttachMenu) setShowAttachMenu(false);
+      if (showModelMenu && modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) {
+        setShowModelMenu(false);
       }
     };
     document.addEventListener("click", clickOutside);
     return () => document.removeEventListener("click", clickOutside);
-  }, [showAttachMenu]);
+  }, [showAttachMenu, showModelMenu]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -121,29 +155,15 @@ const ChatInput = ({ value, onChange, onSend, onStop, isStreaming, disabled }: C
     recognition.interimResults = false;
     recognition.lang = "en-US";
 
-    recognition.onstart = () => {
-      setIsListening(true);
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error("Speech recognition error", event.error);
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
+    recognition.onstart = () => { setIsListening(true); };
+    recognition.onerror = (event: any) => { console.error("Speech recognition error", event.error); setIsListening(false); };
+    recognition.onend = () => { setIsListening(false); };
     recognition.onresult = (event: any) => {
       let finalTranscript = "";
       for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        }
+        if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
       }
-      if (finalTranscript) {
-        onChange((value ? value + " " : "") + finalTranscript.trim());
-      }
+      if (finalTranscript) onChange((value ? value + " " : "") + finalTranscript.trim());
     };
 
     recognitionRef.current = recognition;
@@ -181,13 +201,115 @@ const ChatInput = ({ value, onChange, onSend, onStop, isStreaming, disabled }: C
       )}
 
       <div className="cinput-bar">
-        {/* Attachment menu */}
+        {/* Left actions: Attach + Model Selector */}
         <div className="cinput-actions-left">
+
+          {/* ── Model Selector Button ── */}
+          <div style={{ position: "relative" }} ref={modelMenuRef}>
+            <button
+              className="cinput-model-btn"
+              onClick={(e) => { e.stopPropagation(); setShowModelMenu(!showModelMenu); setShowAttachMenu(false); }}
+              title="Select AI Model"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "5px",
+                background: "rgba(245,158,11,0.12)",
+                border: "1px solid rgba(245,158,11,0.35)",
+                borderRadius: "20px",
+                padding: "5px 12px",
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#d97706",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                transition: "all 0.2s ease",
+                marginRight: "4px"
+              }}
+            >
+              <span>{getModelLabel(selectedModel)}</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {showModelMenu && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: "absolute",
+                  bottom: "calc(100% + 12px)",
+                  left: 0,
+                  width: "min(290px, calc(100vw - 32px))",
+                  maxWidth: "calc(100vw - 32px)",
+                  background: "rgba(255, 255, 255, 0.90)",
+                  backdropFilter: "blur(24px)",
+                  WebkitBackdropFilter: "blur(24px)",
+                  border: "1px solid rgba(245, 158, 11, 0.35)",
+                  borderRadius: "16px",
+                  padding: "10px 0",
+                  boxShadow: "0 20px 50px rgba(15, 23, 42, 0.16), 0 0 20px rgba(245, 158, 11, 0.08)",
+                  zIndex: 1000,
+                  maxHeight: "360px",
+                  overflowY: "auto"
+                }}
+              >
+                {MODELS.map((group) => (
+                  <div key={group.group}>
+                    <div style={{ padding: "8px 16px 4px", fontSize: "10px", fontWeight: 700, color: "#d97706", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      {group.group}
+                    </div>
+                    {group.items.map((model) => {
+                      const isSelected = selectedModel === model.id;
+                      return (
+                        <button
+                          key={model.id}
+                          onClick={() => { onModelChange && onModelChange(model.id); setShowModelMenu(false); }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            width: "100%",
+                            padding: "9px 16px",
+                            background: isSelected ? "rgba(245, 158, 11, 0.18)" : "transparent",
+                            border: "none",
+                            color: isSelected ? "#b45309" : "#1e293b",
+                            fontSize: "13px",
+                            fontWeight: isSelected ? 700 : 500,
+                            cursor: "pointer",
+                            textAlign: "left",
+                            transition: "all 0.15s ease",
+                            gap: "8px"
+                          }}
+                          onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = "rgba(245, 158, 11, 0.08)"; }}
+                          onMouseLeave={(e) => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                        >
+                          <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span>{model.icon}</span>
+                            <span>{model.label}</span>
+                          </span>
+                          {model.tag && (
+                            <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "10px", background: isSelected ? "rgba(245, 158, 11, 0.25)" : "rgba(241, 245, 249, 0.8)", color: isSelected ? "#92400e" : "#475569", fontWeight: 600 }}>
+                              {model.tag}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                    <div style={{ height: "1px", background: "rgba(0, 0, 0, 0.06)", margin: "6px 0" }} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Attachment Button ── */}
           <button
             className={`cinput-attach-btn ${showAttachMenu ? "active" : ""}`}
             onClick={(e) => {
               e.stopPropagation();
               setShowAttachMenu(!showAttachMenu);
+              setShowModelMenu(false);
             }}
             title="Attach files"
             disabled={disabled}
@@ -292,7 +414,7 @@ const ChatInput = ({ value, onChange, onSend, onStop, isStreaming, disabled }: C
 
       <div className="cinput-footer">
         <p className="cinput-disclaimer">
-          Aarka AI may produce inaccurate information. Verify critical outputs.
+          Aarka AI 2.0 may produce inaccurate information. Verify critical outputs.
         </p>
         {charCount > 500 && (
           <span className="cinput-charcount">{charCount}</span>

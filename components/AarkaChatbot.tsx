@@ -29,11 +29,40 @@ const generateId = () => Math.random().toString(36).substring(2, 10);
 
 const API_BASE = "/api/aarka";
 
-/* ─── localStorage helpers ─── */
+/* ─── localStorage & Authentication Storage Policy Helpers ─── */
 const STORAGE_KEY = "aarkaai_conversations";
 
-const loadConversations = (): Conversation[] => {
+const isAuthTokenValidAndAuthenticated = (authToken: string | null): boolean => {
+  if (!authToken) return false;
+  try {
+    const parts = authToken.split(".");
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1]));
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+      return false;
+    }
+    if (
+      payload.sub &&
+      payload.sub !== "guest_visitor" &&
+      payload.sub !== "service_api_user" &&
+      payload.email !== "visitor@aarkaai.com"
+    ) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+};
+
+const loadConversations = (authToken: string | null): Conversation[] => {
   if (typeof window === "undefined") return [];
+  if (!isAuthTokenValidAndAuthenticated(authToken)) {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+    return [];
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
@@ -53,7 +82,14 @@ const loadConversations = (): Conversation[] => {
   }
 };
 
-const saveConversations = (convs: Conversation[]) => {
+const saveConversations = (convs: Conversation[], authToken: string | null) => {
+  if (typeof window === "undefined") return;
+  if (!isAuthTokenValidAndAuthenticated(authToken)) {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+    return;
+  }
   try {
     const toSave = convs.map((c) => ({
       ...c,
@@ -97,6 +133,7 @@ const AarkaChatbot = () => {
   const [token, setToken] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusText, setStatusText] = useState("");
+  const [selectedModel, setSelectedModel] = useState<string>("aarkaa-2.0-high");
 
   // New Features State
   const [userInfo, setUserInfo] = useState<{ email: string; name: string; tier: string; queriesUsed: number; windowLimit: number } | null>(null);
@@ -114,6 +151,12 @@ const AarkaChatbot = () => {
   const [authName, setAuthName] = useState("");
   const [authError, setAuthError] = useState("");
 
+  // Interactive GitHub Prompt dialog configuration
+  const [showGitCredentialsPrompt, setShowGitCredentialsPrompt] = useState(false);
+  const [gitUserField, setGitUserField] = useState("");
+  const [gitTokenField, setGitTokenField] = useState("");
+  const [pendingQueryStr, setPendingQueryStr] = useState("");
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const streamAbortRef = useRef(false);
@@ -122,7 +165,8 @@ const AarkaChatbot = () => {
 
   // Load conversations and mount
   useEffect(() => {
-    const loaded = loadConversations();
+    const savedToken = typeof window !== "undefined" ? localStorage.getItem("aarkaai_token") : null;
+    const loaded = loadConversations(savedToken);
     if (loaded.length > 0) {
       setConversations(loaded);
       setActiveConvId(loaded[0].id);
@@ -162,9 +206,9 @@ const AarkaChatbot = () => {
   // ─── Persist conversations ───
   useEffect(() => {
     if (mounted) {
-      saveConversations(conversations);
+      saveConversations(conversations, token);
     }
-  }, [conversations, mounted]);
+  }, [conversations, mounted, token]);
 
   // ─── Auth & Features ───
   useEffect(() => {
@@ -221,39 +265,26 @@ const AarkaChatbot = () => {
   useEffect(() => {
     const fetchToken = async () => {
       const savedToken = localStorage.getItem("aarkaai_token");
-      if (savedToken) {
+      if (savedToken && isAuthTokenValidAndAuthenticated(savedToken)) {
         setToken(savedToken);
         return;
       }
 
-      const defaultUser = {
-        email: "visitor@aarkaai.com",
-        password: "VisitorSecurePassword123!",
-        name: "Web Visitor",
-      };
+      // Guest / Visitor mode: Purge persistent storage to prevent guest browser tracking
+      try {
+        localStorage.removeItem("aarkaai_token");
+        localStorage.removeItem("aarkaai_conversations");
+      } catch {}
 
       try {
-        let resp = await fetch(`${API_BASE}/auth/login`, {
+        const resp = await fetch("/api/auth/visitor", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(defaultUser),
         });
 
         if (resp.status === 200) {
           const data = await resp.json();
-          localStorage.setItem("aarkaai_token", data.access_token);
+          // Keep visitor token strictly in React memory state — NEVER persist to localStorage
           setToken(data.access_token);
-        } else {
-          resp = await fetch(`${API_BASE}/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(defaultUser),
-          });
-          if (resp.status === 200) {
-            const data = await resp.json();
-            localStorage.setItem("aarkaai_token", data.access_token);
-            setToken(data.access_token);
-          }
         }
       } catch (err) {
         console.error("Failed to authenticate visitor:", err);
@@ -265,29 +296,19 @@ const AarkaChatbot = () => {
   // Google OAuth Popup Message Listener
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
+      // Security: Only accept messages from our own origin
+      if (event.origin !== window.location.origin) return;
       if (event.data?.type === "google_login_success") {
-        const googleUser = {
-          email: "googleuser@gmail.com",
-          password: "GoogleSecurePassword123!",
-          name: "Google User",
-        };
         try {
-          let resp = await fetch(`${API_BASE}/auth/login`, {
+          const resp = await fetch("/api/auth/google", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(googleUser),
+            body: JSON.stringify({ email: event.data.email, name: event.data.name }),
           });
-          if (resp.status !== 200) {
-            resp = await fetch(`${API_BASE}/auth/register`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(googleUser),
-            });
-          }
           if (resp.status === 200) {
             const data = await resp.json();
             localStorage.setItem("aarkaai_token", data.access_token);
-            localStorage.setItem(`aarkaai_user_info_${data.user_id}`, JSON.stringify({ name: googleUser.name, email: googleUser.email }));
+            localStorage.setItem(`aarkaai_user_info_${data.user_id}`, JSON.stringify({ name: event.data.name || "Google User", email: event.data.email || "googleuser@gmail.com" }));
             setToken(data.access_token);
             setShowAuthModal(false);
           }
@@ -334,9 +355,21 @@ const AarkaChatbot = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("aarkaai_token");
+    try {
+      localStorage.removeItem("aarkaai_token");
+      localStorage.removeItem("aarkaai_conversations");
+      if (typeof window !== "undefined" && window.localStorage) {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("aarkaai_")) {
+            localStorage.removeItem(key);
+          }
+        }
+      }
+    } catch {}
     setToken(null);
     setUserInfo(null);
+    setConversations([]);
     setShowUserPopover(false);
     window.location.reload();
   };
@@ -359,37 +392,9 @@ const AarkaChatbot = () => {
   };
 
   const handleGoogleLogin = () => {
-    const popup = window.open("", "Google Login", "width=480,height=550");
-    if (popup) {
-      popup.document.write(`
-        <html>
-          <head>
-            <title>Sign in with Google</title>
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #ffffff; color: #1e293b; text-align: center; }
-              .logo { font-size: 24px; font-weight: bold; margin-bottom: 8px; }
-              .logo span { color: #4285F4; }
-              .logo span:nth-child(2) { color: #EA4335; }
-              .logo span:nth-child(3) { color: #FBBC05; }
-              .logo span:nth-child(4) { color: #34A853; }
-              .spinner { border: 3px solid #f1f5f9; border-top: 3px solid #3b82f6; border-radius: 50%; width: 32px; height: 32px; animation: spin 0.8s linear infinite; margin-top: 20px; }
-              @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-            </style>
-          </head>
-          <body>
-            <div class="logo"><span>G</span><span>o</span><span>o</span><span>g</span><span>l</span><span>e</span></div>
-            <div style="font-size: 14px; color: #64748b;">Signing in to Aarkaa AI</div>
-            <div class="spinner"></div>
-            <script>
-              setTimeout(() => {
-                window.opener.postMessage({ type: "google_login_success" }, "*");
-                window.close();
-              }, 1200);
-            </script>
-          </body>
-        </html>
-      `);
-    }
+    // Google OAuth requires proper server-side integration with Google Identity Services.
+    // This is a placeholder — do NOT ship a simulated flow in production.
+    alert("Google Sign-In is not yet configured. Please use email login or contact support.");
   };
 
   // ─── Scroll handling ───
@@ -423,60 +428,85 @@ const AarkaChatbot = () => {
     }
   }, [activeConv.messages, isStreamingText, scrollToBottom]);
 
-  // ─── Streaming simulation ───
-  const simulateStreaming = useCallback(
-    (msgId: string, fullText: string) => {
-      streamAbortRef.current = false;
-      streamingMsgIdRef.current = msgId;
-      setIsStreamingText(true);
+  // ─── Claude-style token queue + rAF drain loop ───
+  // SSE tokens arrive in network bursts (TCP batches multiple events).
+  // The queue absorbs bursts; a rAF loop drains them at a smooth adaptive rate.
+  const tokenQueueRef = useRef<string[]>([]);
+  const drainRafRef = useRef<number | null>(null);
+  const drainMsgIdRef = useRef<string | null>(null);
+  const drainedTextRef = useRef("");
+  const streamDoneRef = useRef(false);
 
-      const words = fullText.split(/(\s+)/);
-      let wordIndex = 0;
-      const WORDS_PER_TICK = 2;
-      const TICK_MS = 30;
+  const startTokenDrain = useCallback(
+    (msgId: string) => {
+      if (drainRafRef.current !== null) return; // already running
+      drainMsgIdRef.current = msgId;
+      drainedTextRef.current = "";
+      streamDoneRef.current = false;
 
-      const tick = () => {
-        if (streamAbortRef.current || wordIndex >= words.length) {
-          // Done: set final content
+      const drain = () => {
+        if (streamAbortRef.current) {
+          tokenQueueRef.current = [];
+          drainRafRef.current = null;
+          drainMsgIdRef.current = null;
+          setIsStreamingText(false);
+          return;
+        }
+
+        const queue = tokenQueueRef.current;
+        if (queue.length > 0) {
+          // Adaptive drain: pull more tokens per frame when queue is deep (catches up),
+          // pull fewer when shallow (smooth, natural pacing)
+          const pullCount = Math.max(1, Math.min(4, Math.ceil(queue.length / 3)));
+          const batch = queue.splice(0, pullCount).join("");
+          drainedTextRef.current += batch;
+          const displayed = drainedTextRef.current;
+          const id = drainMsgIdRef.current;
+
           setConversations((prev) =>
             prev.map((c) =>
               c.id === activeConvId
                 ? {
                     ...c,
                     messages: c.messages.map((m) =>
-                      m.id === msgId
-                        ? { ...m, displayedContent: m.content, isStreaming: false }
+                      m.id === id
+                        ? { ...m, content: displayed, displayedContent: displayed }
                         : m
                     ),
                   }
                 : c
             )
           );
-          setIsStreamingText(false);
+          drainRafRef.current = requestAnimationFrame(drain);
+        } else if (streamDoneRef.current) {
+          // Queue empty and SSE finished — finalize
+          const finalText = drainedTextRef.current;
+          const id = drainMsgIdRef.current;
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === activeConvId
+                ? {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === id
+                        ? { ...m, content: finalText, displayedContent: finalText, isStreaming: false }
+                        : m
+                    ),
+                  }
+                : c
+            )
+          );
+          drainRafRef.current = null;
+          drainMsgIdRef.current = null;
           streamingMsgIdRef.current = null;
-          return;
+          setIsStreamingText(false);
+        } else {
+          // Queue empty but SSE still sending — wait for next frame
+          drainRafRef.current = requestAnimationFrame(drain);
         }
-
-        wordIndex += WORDS_PER_TICK;
-        const displayed = words.slice(0, wordIndex).join("");
-
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === activeConvId
-              ? {
-                  ...c,
-                  messages: c.messages.map((m) =>
-                    m.id === msgId ? { ...m, displayedContent: displayed } : m
-                  ),
-                }
-              : c
-          )
-        );
-
-        setTimeout(tick, TICK_MS);
       };
 
-      tick();
+      drainRafRef.current = requestAnimationFrame(drain);
     },
     [activeConvId]
   );
@@ -488,11 +518,19 @@ const AarkaChatbot = () => {
       apiAbortRef.current.abort();
       apiAbortRef.current = null;
     }
+    // Cancel the rAF drain loop and flush queue
+    if (drainRafRef.current) {
+      cancelAnimationFrame(drainRafRef.current);
+      drainRafRef.current = null;
+    }
+    tokenQueueRef.current = [];
+    streamDoneRef.current = false;
     setIsWaitingForAPI(false);
     setStatusText("");
 
     // Finalize any streaming message with whatever was displayed so far
     if (streamingMsgIdRef.current) {
+      const displayedSoFar = drainedTextRef.current;
       setConversations((prev) =>
         prev.map((c) =>
           c.id === activeConvId
@@ -502,7 +540,7 @@ const AarkaChatbot = () => {
                   m.id === streamingMsgIdRef.current
                     ? {
                         ...m,
-                        content: m.displayedContent || m.content,
+                        content: displayedSoFar || m.displayedContent || m.content,
                         isStreaming: false,
                       }
                     : m
@@ -512,6 +550,7 @@ const AarkaChatbot = () => {
         )
       );
       streamingMsgIdRef.current = null;
+      drainMsgIdRef.current = null;
     }
     setIsStreamingText(false);
   }, [activeConvId]);
@@ -569,6 +608,7 @@ const AarkaChatbot = () => {
           body: JSON.stringify({
             query: backendQuery,
             session_id: activeConvId,
+            model_override: selectedModel,
           }),
           signal: abortCtrl.signal,
         });
@@ -576,34 +616,17 @@ const AarkaChatbot = () => {
 
       const refreshToken = async (): Promise<string | null> => {
         try {
-          const defaultUser = {
-            email: "visitor@aarkaai.com",
-            password: "VisitorSecurePassword123!",
-            name: "Web Visitor",
-          };
-          let resp = await fetch(`${API_BASE}/auth/login`, {
+          const resp = await fetch("/api/auth/visitor", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(defaultUser),
           });
           if (resp.status === 200) {
             const data = await resp.json();
-            localStorage.setItem("aarkaai_token", data.access_token);
+            // Only persist to localStorage if user is authenticated (not a visitor)
+            if (isAuthTokenValidAndAuthenticated(data.access_token)) {
+              localStorage.setItem("aarkaai_token", data.access_token);
+            }
             setToken(data.access_token);
             return data.access_token;
-          } else {
-            // Self-heal: Try to register if login fails (e.g., database reset)
-            resp = await fetch(`${API_BASE}/auth/register`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(defaultUser),
-            });
-            if (resp.status === 200) {
-              const data = await resp.json();
-              localStorage.setItem("aarkaai_token", data.access_token);
-              setToken(data.access_token);
-              return data.access_token;
-            }
           }
         } catch { /* ignore */ }
         return null;
@@ -657,6 +680,16 @@ const AarkaChatbot = () => {
                   if (chunk.type === "status") {
                     setStatusText(chunk.status || "");
                   } else if (chunk.type === "content" && chunk.token) {
+                    if (chunk.token.includes("INTERACTIVE_INPUT_REQUEST")) {
+                      // Trigger credential capture dialog modal
+                      setPendingQueryStr(backendQuery);
+                      setShowGitCredentialsPrompt(true);
+                      // Gracefully terminate request to prevent error states
+                      abortCtrl.abort();
+                      setIsWaitingForAPI(false);
+                      setStatusText("");
+                      return;
+                    }
                     if (!messageAdded) {
                       aiMsgId = generateId();
                       const aiMessage: Message = {
@@ -676,27 +709,18 @@ const AarkaChatbot = () => {
                         )
                       );
                       messageAdded = true;
+                      streamingMsgIdRef.current = aiMsgId;
                       setIsWaitingForAPI(false);
                       setIsStreamingText(true);
                       setStatusText("");
                     }
 
+                    // ── Push token into the drain queue for smooth rAF rendering ──
                     fullText += chunk.token;
-                    // Update state with incremental text
-                    setConversations((prev) =>
-                      prev.map((c) =>
-                        c.id === activeConvId
-                          ? {
-                              ...c,
-                              messages: c.messages.map((m) =>
-                                m.id === aiMsgId
-                                  ? { ...m, content: fullText, displayedContent: fullText }
-                                  : m
-                              ),
-                            }
-                          : c
-                      )
-                    );
+                    tokenQueueRef.current.push(chunk.token);
+                    if (aiMsgId && !drainRafRef.current) {
+                      startTokenDrain(aiMsgId);
+                    }
                   } else if (chunk.type === "final") {
                     if (messageAdded) {
                       setConversations((prev) =>
@@ -715,6 +739,15 @@ const AarkaChatbot = () => {
                       );
                     }
                   } else if (chunk.type === "error") {
+                    if (chunk.detail && chunk.detail.includes("GIT_CREDENTIALS_REQUIRED")) {
+                      // Trigger credential capture dialog modal
+                      setPendingQueryStr(backendQuery);
+                      setShowGitCredentialsPrompt(true);
+                      abortCtrl.abort();
+                      setIsWaitingForAPI(false);
+                      setStatusText("");
+                      return;
+                    }
                     throw new Error(chunk.detail || "Error streaming tokens");
                   }
                 } catch (e) {
@@ -725,22 +758,10 @@ const AarkaChatbot = () => {
           } finally {
             reader.releaseLock();
             
-            // Mark streaming as complete ALWAYS in finally, ensuring it clears even if connection closes or throws!
-            if (messageAdded && aiMsgId) {
-              setConversations((prev) =>
-                prev.map((c) =>
-                  c.id === activeConvId
-                    ? {
-                        ...c,
-                        messages: c.messages.map((m) =>
-                          m.id === aiMsgId ? { ...m, isStreaming: false } : m
-                        ),
-                      }
-                    : c
-                )
-              );
-            }
-            setIsStreamingText(false);
+            // Signal the rAF drain loop that the SSE stream is done.
+            // The drain loop will finalize the message once it empties the queue,
+            // ensuring every queued token is rendered before marking isStreaming=false.
+            streamDoneRef.current = true;
             setIsWaitingForAPI(false);
             setStatusText("");
           }
@@ -757,7 +778,7 @@ const AarkaChatbot = () => {
         const errorMessage: Message = {
           id: generateId(),
           role: "assistant",
-          content: "I'm sorry, I'm having trouble connecting to the Aarka AI backend right now. Please try again in a moment.",
+          content: "I'm sorry, I'm having trouble connecting to the Aarka AI 2.0 backend right now. Please try again in a moment.",
           displayedContent: "I'm sorry, I'm having trouble connecting to the Aarka AI backend right now. Please try again in a moment.",
           timestamp: new Date(),
         };
@@ -772,7 +793,7 @@ const AarkaChatbot = () => {
         setStatusText("");
       }
     },
-    [input, isWaitingForAPI, isStreamingText, activeConvId, token, simulateStreaming]
+    [input, isWaitingForAPI, isStreamingText, activeConvId, token, startTokenDrain]
   );
 
   // ─── Regenerate last response ───
@@ -838,7 +859,7 @@ const AarkaChatbot = () => {
     return (
       <div className="chat-container">
         <div className="chat-loading-screen" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', width: '100%', color: '#94a3b8' }}>
-          Loading Aarka AI...
+          Loading Aarka AI 2.0...
         </div>
       </div>
     );
@@ -1002,8 +1023,11 @@ const AarkaChatbot = () => {
               </svg>
             </button>
           )}
-          <div className="chat-topbar-title">
-            <span className="chat-topbar-model">Aarka AI</span>
+          <div className="chat-topbar-title" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--foreground)", letterSpacing: "-0.01em" }}>Aarka AI 2.0</span>
+            <span style={{ fontSize: "11px", fontWeight: 600, color: "#d97706", background: "rgba(245,158,11,0.12)", padding: "2px 8px", borderRadius: "12px", border: "1px solid rgba(245,158,11,0.25)" }}>
+              {selectedModel.startsWith("aarkaa") ? "⚡ Aarka 2.0 Engine" : selectedModel.includes("gemini") ? "✨ Google Gemini" : selectedModel.includes("claude") ? "🧠 Anthropic Claude" : "🤖 GPT-OSS"}
+            </span>
           </div>
           {isBusy && (
             <div className="chat-topbar-status">
@@ -1031,6 +1055,8 @@ const AarkaChatbot = () => {
                     onStop={stopGenerating}
                     isStreaming={isBusy}
                     disabled={isWaitingForAPI}
+                    selectedModel={selectedModel}
+                    onModelChange={setSelectedModel}
                   />
                 </ChatWelcome>
               ) : (
@@ -1055,7 +1081,7 @@ const AarkaChatbot = () => {
                       </div>
                       <div className="cmsg-content">
                         <div className="cmsg-header">
-                          <span className="cmsg-role-label">Aarka AI</span>
+                          <span className="cmsg-role-label">Aarka AI 2.0</span>
                         </div>
                         <div className="cmsg-body">
                           <div className="typing-dots">
@@ -1090,6 +1116,8 @@ const AarkaChatbot = () => {
                 onStop={stopGenerating}
                 isStreaming={isBusy}
                 disabled={isWaitingForAPI}
+                selectedModel={selectedModel}
+                onModelChange={setSelectedModel}
               />
             )}
           </>
@@ -1117,6 +1145,19 @@ const AarkaChatbot = () => {
                 <path d="M12.24 10.285V13.4h6.86c-.277 1.56-1.602 4.585-6.86 4.585-4.54 0-8.24-3.76-8.24-8.4s3.7-8.4 8.24-8.4c2.58 0 4.307 1.095 5.298 2.045l2.465-2.37C18.435 1.21 15.62 0 12.24 0 5.58 0 0 5.37 0 12s5.58 12 12.24 12c6.96 0 11.57-4.89 11.57-11.79 0-.795-.085-1.4-.195-1.925H12.24z"/>
               </svg>
               <span>Continue with Google</span>
+            </button>
+
+            {/* GitHub Sign-in */}
+            <button
+              type="button"
+              className="chat-google-btn"
+              style={{ backgroundColor: '#24292e', color: 'white', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '12px' }}
+              onClick={() => { window.location.href = "http://3.223.192.194:5000/auth/github/login"; }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+              </svg>
+              <span>Continue with GitHub</span>
             </button>
 
             <div style={{ display: 'flex', alignItems: 'center', margin: '16px 0', color: '#94a3b8', fontSize: '12px' }}>
@@ -1280,6 +1321,67 @@ const AarkaChatbot = () => {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* GitHub Credentials Pop-up Dialog Modal */}
+      {showGitCredentialsPrompt && (
+        <div className="chat-modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="chat-modal-container" style={{ maxWidth: '400px' }}>
+            <div className="chat-modal-header">
+              <h3 className="chat-modal-title">Git Credentials Required</h3>
+              <button className="chat-modal-close" onClick={() => setShowGitCredentialsPrompt(false)}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            
+            <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 16px', lineHeight: 1.5 }}>
+              The active workspace requires authentication details to execute secure git tasks. Please enter your parameters below.
+            </p>
+
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setShowGitCredentialsPrompt(false);
+              
+              // Temporarily inject username and token parameters into query so backend parses them
+              const authArgs = `\n\n[AuthParams: username="${gitUserField}" token="${gitTokenField}"]`;
+              const queryWithAuth = pendingQueryStr + authArgs;
+              
+              // Trigger message processing
+              sendMessage(queryWithAuth);
+            }}>
+              <div className="chat-form-group" style={{ marginBottom: '12px' }}>
+                <label className="chat-form-label">GitHub Username</label>
+                <input
+                  type="text"
+                  required
+                  value={gitUserField}
+                  onChange={(e) => setGitUserField(e.target.value)}
+                  placeholder="e.g. john-doe"
+                  className="chat-form-input"
+                />
+              </div>
+
+              <div className="chat-form-group" style={{ marginBottom: '20px' }}>
+                <label className="chat-form-label">Personal Access Token (PAT)</label>
+                <input
+                  type="password"
+                  required
+                  value={gitTokenField}
+                  onChange={(e) => setGitTokenField(e.target.value)}
+                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  className="chat-form-input"
+                />
+              </div>
+
+              <button type="submit" className="chat-modal-btn">
+                Authenticate & Run Command
+              </button>
+            </form>
           </div>
         </div>
       )}

@@ -1,13 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import http from "http";
+import https from "https";
 
-const BACKEND = process.env.AARKAAI_BACKEND_URL || "http://194.68.245.29:5000";
-const BACKEND_URL = new URL(BACKEND);
+// Lazy-initialize backend URL to avoid crashing during `next build` page collection
+// (NODE_ENV is 'production' at build time but env vars aren't available yet)
+let _backendUrl: URL | null = null;
+function getBackendUrl(): URL {
+  if (!_backendUrl) {
+    const backend = process.env.AARKAAI_BACKEND_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://127.0.0.1:5000');
+    if (!backend) {
+      throw new Error('AARKAAI_BACKEND_URL environment variable is required in production');
+    }
+    _backendUrl = new URL(backend);
+  }
+  return _backendUrl;
+}
+function getBackend(): string {
+  return process.env.AARKAAI_BACKEND_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://127.0.0.1:5000');
+}
+const SERVICE_API_KEY = process.env.FINGENIQ_SERVICE_API_KEY || process.env.AARKAAI_API_KEY || "";
 
 function buildHeaders(request: NextRequest, bodyToken?: string): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
+
+  if (SERVICE_API_KEY) {
+    headers["X-API-Key"] = SERVICE_API_KEY;
+  }
+
   const auth =
     request.headers.get("x-auth-token") ||
     request.headers.get("authorization") ||
@@ -38,11 +59,14 @@ export async function POST(
         request.headers.get("Authorization");
 
       const backendHeaders: Record<string, string> = {};
+      if (SERVICE_API_KEY) {
+        backendHeaders["X-API-Key"] = SERVICE_API_KEY;
+      }
       if (auth) {
         backendHeaders["Authorization"] = auth.startsWith("Bearer ") ? auth : `Bearer ${auth}`;
       }
 
-      const response = await fetch(`${BACKEND}/upload`, {
+      const response = await fetch(`${getBackend()}/upload`, {
         method: "POST",
         headers: backendHeaders,
         body: formData,
@@ -66,12 +90,19 @@ export async function POST(
     }
 
     const headers = buildHeaders(request, bodyToken);
+    if (body) {
+      headers["Content-Length"] = Buffer.byteLength(body).toString();
+    }
+
+    const backendUrl = getBackendUrl();
+    const transport = backendUrl.protocol === "https:" ? https : http;
+    const defaultPort = backendUrl.protocol === "https:" ? 443 : 80;
 
     return new Promise<NextResponse>((resolve, reject) => {
-      const req = http.request(
+      const req = transport.request(
         {
-          hostname: BACKEND_URL.hostname,
-          port: BACKEND_URL.port ? parseInt(BACKEND_URL.port) : 80,
+          hostname: backendUrl.hostname,
+          port: backendUrl.port ? parseInt(backendUrl.port) : defaultPort,
           path: targetPath,
           method: "POST",
           headers: headers,
@@ -168,7 +199,7 @@ export async function GET(
 ) {
   try {
     const { path } = await params;
-    const targetUrl = `${BACKEND}/${path.join("/")}`;
+    const targetUrl = `${getBackend()}/${path.join("/")}`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30_000);

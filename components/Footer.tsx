@@ -59,8 +59,8 @@ const Footer = () => {
             © {currentYear} Synthetix Analytics. Institutional Grade Engineering.
           </p>
           <div className="flex gap-6">
-            <Link href="#" className="text-[11px] font-bold tracking-pro uppercase text-muted/60 hover:text-accent transition-colors">Privacy</Link>
-            <Link href="#" className="text-[11px] font-bold tracking-pro uppercase text-muted/60 hover:text-accent transition-colors">Terms</Link>
+            <span className="text-[11px] font-bold tracking-pro uppercase text-muted/60">Privacy Policy</span>
+            <span className="text-[11px] font-bold tracking-pro uppercase text-muted/60">Terms of Service</span>
           </div>
         </div>
       </div>

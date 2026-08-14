@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://synthetixanalytics.com/sitemap.xml
+
+# Disallow crawling of API routes and internal paths
+Disallow: /api/
+Disallow: /_next/
+Disallow: /test-route/

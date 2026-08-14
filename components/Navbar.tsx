@@ -15,11 +15,22 @@ const Navbar = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
+
   const navLinks = [
     { name: "Home", href: "/" },
     { name: "Services", href: "/services" },
     { name: "Products", href: "/products" },
-    { name: "Aarka AI", href: "/aarkaai" },
+    { name: "Aarka AI 2.0", href: "/aarkaai" },
     { name: "Core Team", href: "/team" },
     { name: "About Us", href: "/about" },
     { name: "Contact Us", href: "/contact" },
@@ -94,6 +105,7 @@ const Navbar = () => {
         <button
           className="lg:hidden p-2.5 rounded-lg text-foreground hover:bg-foreground/5 transition-colors"
           onClick={() => setMobileOpen(!mobileOpen)}
+          aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             {mobileOpen ? (
@@ -112,13 +124,24 @@ const Navbar = () => {
         </button>
       </div>
 
+      {/* Mobile Backdrop Overlay */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 top-[72px] bg-black/30 backdrop-blur-sm z-40 transition-opacity"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Mobile menu */}
       <div
-        className={`lg:hidden overflow-hidden transition-all duration-400 ${
-          mobileOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+        className={`lg:hidden relative z-50 overflow-y-auto transition-all duration-300 ease-in-out ${
+          mobileOpen
+            ? "max-h-[calc(100dvh-120px)] opacity-100 border-b border-gray-200/80 shadow-2xl"
+            : "max-h-0 opacity-0 pointer-events-none"
         }`}
       >
-        <div className="bg-white/80 backdrop-blur-2xl px-6 py-5 space-y-1 border-t border-gray-100/50">
+        <div className="bg-white/95 backdrop-blur-2xl px-6 py-5 space-y-1 border-t border-gray-100/50">
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
             return (

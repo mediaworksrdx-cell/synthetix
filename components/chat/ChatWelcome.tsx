@@ -30,7 +30,7 @@ const ChatWelcome = ({ children }: ChatWelcomeProps) => {
 
       <h2 className="cwelcome-title">{getGreeting()}</h2>
       <p className="cwelcome-sub">
-        I&apos;m Aarka AI — your enterprise intelligence assistant. Ask me anything about coding, finance, logic, or general knowledge.
+        I&apos;m Aarka AI 2.0 — your enterprise intelligence assistant. Ask me anything about coding, finance, logic, or general knowledge.
       </p>
 
       {/* Centered input container */}
@@ -38,7 +38,7 @@ const ChatWelcome = ({ children }: ChatWelcomeProps) => {
         {children}
       </div>
 
-      <p className="cwelcome-powered">Powered by Aarka Intelligence Engine</p>
+      <p className="cwelcome-powered">Powered by Aarka AI 2.0 Intelligence Engine</p>
     </div>
   );
 };

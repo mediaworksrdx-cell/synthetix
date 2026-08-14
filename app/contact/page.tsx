@@ -25,6 +25,8 @@ const ContactPage = () => {
   };
 
   useEffect(() => {
+    document.title = "Contact Us | Synthetix Analytics";
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -357,6 +359,7 @@ const ContactPage = () => {
           style={{ border: 0 }}
           allowFullScreen
           loading="lazy"
+          title="Map showing Synthetix Analytics headquarters in Chennai, India"
         ></iframe>
       </section>
     </div>

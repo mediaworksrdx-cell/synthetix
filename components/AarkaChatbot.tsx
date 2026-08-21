@@ -349,7 +349,7 @@ const AarkaChatbot = () => {
         const errData = await resp.json();
         setAuthError(errData.detail || "Authentication failed.");
       }
-    } catch (err) {
+    } catch {
       setAuthError("Failed to connect to authentication server.");
     }
   };
@@ -400,9 +400,8 @@ const AarkaChatbot = () => {
   // ─── Scroll handling ───
   const isAtBottomRef = useRef(true);
 
-  const scrollToBottom = useCallback((behavior: ScrollBehavior | any = "smooth") => {
-    const cleanBehavior = typeof behavior === "string" ? behavior : "smooth";
-    messagesEndRef.current?.scrollIntoView({ behavior: cleanBehavior as ScrollBehavior });
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   }, []);
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import React, { ReactNode } from "react";
+import React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Image from "next/image";
@@ -419,7 +419,7 @@ export default async function ServicePage({ params }: { params: Promise<{ servic
                     <div className="bg-gradient-to-br from-slate-50 to-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
                       <div className="absolute top-0 left-0 w-1 h-full bg-accent"></div>
                       <p className="text-base text-foreground font-medium leading-relaxed italic">
-                        "{service.businessImpact}"
+                        &ldquo;{service.businessImpact}&rdquo;
                       </p>
                     </div>
                   </div>

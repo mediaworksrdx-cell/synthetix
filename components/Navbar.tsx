@@ -30,7 +30,6 @@ const Navbar = () => {
     { name: "Home", href: "/" },
     { name: "Services", href: "/services" },
     { name: "Products", href: "/products" },
-    { name: "Aarka AI 2.0", href: "/aarkaai" },
     { name: "Core Team", href: "/team" },
     { name: "About Us", href: "/about" },
     { name: "Contact Us", href: "/contact" },
@@ -61,7 +60,7 @@ const Navbar = () => {
           : "bg-white/80 backdrop-blur-xl border-b border-transparent"
       }`}
     >
-      <div className="container h-[72px] flex items-center justify-between">
+      <div className="container h-18 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 group">
           <div className="relative w-10 h-10 bg-foreground rounded-lg flex items-center justify-center overflow-hidden transition-all duration-400 group-hover:rounded-xl group-hover:shadow-lg group-hover:shadow-accent/20">
@@ -127,7 +126,7 @@ const Navbar = () => {
       {/* Mobile Backdrop Overlay */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 top-[72px] bg-black/30 backdrop-blur-sm z-40 transition-opacity"
+          className="lg:hidden fixed inset-0 top-18 bg-black/30 backdrop-blur-sm z-40 transition-opacity"
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
         />
@@ -137,9 +136,10 @@ const Navbar = () => {
       <div
         className={`lg:hidden relative z-50 overflow-y-auto transition-all duration-300 ease-in-out ${
           mobileOpen
-            ? "max-h-[calc(100dvh-120px)] opacity-100 border-b border-gray-200/80 shadow-2xl"
+            ? "opacity-100 border-b border-gray-200 shadow-2xl"
             : "max-h-0 opacity-0 pointer-events-none"
         }`}
+        style={mobileOpen ? { maxHeight: '500px' } : undefined}
       >
         <div className="bg-white/95 backdrop-blur-2xl px-6 py-5 space-y-1 border-t border-gray-100/50">
           {navLinks.map((link) => {

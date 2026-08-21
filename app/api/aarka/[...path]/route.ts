@@ -48,7 +48,8 @@ export async function POST(
 ) {
   try {
     const { path } = await params;
-    const targetPath = `/${path.join("/")}`;
+    const search = request.nextUrl.search || "";
+    const targetPath = `/${path.join("/")}${search}`;
 
     const contentType = request.headers.get("content-type") || "";
     if (contentType.includes("multipart/form-data")) {
@@ -199,7 +200,8 @@ export async function GET(
 ) {
   try {
     const { path } = await params;
-    const targetUrl = `${getBackend()}/${path.join("/")}`;
+    const search = request.nextUrl.search || "";
+    const targetUrl = `${getBackend()}/${path.join("/")}${search}`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30_000);

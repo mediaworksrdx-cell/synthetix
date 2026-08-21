@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @source "../components/**/*.{js,ts,jsx,tsx}";
 @source "../app/**/*.{js,ts,jsx,tsx}";
+
+
 @theme {
   --color-foreground: #0f172a;
   --color-accent: #F59E0B;
@@ -17,6 +19,14 @@
 
   --tracking-pro: 0.08em;
   --tracking-extratight: -0.04em;
+}
+
+/* Override Tailwind's container utility so our custom sizing wins */
+@utility container {
+  max-width: 1120px;
+  margin-inline: auto;
+  padding-inline: 24px;
+  width: 100%;
 }
 
 @layer base {
@@ -126,14 +136,7 @@
   100% { transform: translateY(-10vh) translateX(-20px) rotate(360deg); opacity: 0; }
 }
 
-/* ─── Layout ─── */
-.container {
-  max-width: 1120px;
-  margin: 0 auto;
-  padding: 0 24px;
-  width: 100%;
-}
-
+/* ─── Sections ─── */
 .section {
   padding: 72px 0;
   position: relative;
@@ -513,10 +516,6 @@
 }
 
 @media (max-width: 640px) {
-  .container {
-    padding: 0 16px;
-  }
-
   .hero-title {
     font-size: 30px;
     line-height: 1.18;

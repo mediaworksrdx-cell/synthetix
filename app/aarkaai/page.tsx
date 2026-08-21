@@ -1,13 +1,7 @@
 "use client";
 
-import AarkaChatbot from "@/components/AarkaChatbot";
+import ClaudeAarkaaAI from "@/components/ClaudeAarkaaAI";
 
-const AarkaAIPage = () => {
-  return (
-    <div className="chat-page">
-      <AarkaChatbot />
-    </div>
-  );
-};
-
-export default AarkaAIPage;
+export default function AarkaAIPage() {
+  return <ClaudeAarkaaAI />;
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import SkillCard from "./SkillCard";
 import SkillMarkdownEditor from "./SkillMarkdownEditor";
 import SkillTestPanel from "./SkillTestPanel";
@@ -21,11 +21,16 @@ export default function SkillStudio({ inline, onClose }: SkillStudioProps) {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [view, setView] = useState<"library" | "editor" | "tester">("library");
   const [activeSkill, setActiveSkill] = useState<Skill | null>(null);
-  const [theme, setTheme] = useState("light");
+  const [theme] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("aarkaai_theme") || "light";
+    }
+    return "light";
+  });
 
-  const fetchSkills = async () => {
+  const fetchSkills = useCallback(async () => {
+    const token = localStorage.getItem("aarkaai_token") || "";
     try {
-      const token = localStorage.getItem("aarkaai_token") || "";
       const res = await fetch("/api/aarka/skills", {
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -36,12 +41,27 @@ export default function SkillStudio({ inline, onClose }: SkillStudioProps) {
     } catch (e) {
       console.error("Failed fetching skills library:", e);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchSkills();
-    const currentTheme = localStorage.getItem("aarkaai_theme") || "light";
-    setTheme(currentTheme);
+    let active = true;
+    const token = localStorage.getItem("aarkaai_token") || "";
+    fetch("/api/aarka/skills", {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data) {
+          setSkills(data);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed fetching skills library:", err);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleSaveSkill = async (name: string, content: string) => {

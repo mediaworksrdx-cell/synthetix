@@ -52,7 +52,7 @@ const ChatInput = ({ value, onChange, onSend, onStop, isStreaming, disabled, sel
   const [showModelMenu, setShowModelMenu] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<{ stop: () => void } | null>(null);
 
   // Close menus on click outside
   useEffect(() => {
@@ -66,20 +66,24 @@ const ChatInput = ({ value, onChange, onSend, onStop, isStreaming, disabled, sel
     return () => document.removeEventListener("click", clickOutside);
   }, [showAttachMenu, showModelMenu]);
 
-  // Auto-resize textarea
+  // Auto-resize textarea as user types (up to max-h-52)
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height =
-        Math.min(textareaRef.current.scrollHeight, 180) + "px";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 208)}px`;
     }
   }, [value]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (isStreaming) return;
-      handleSend();
+      if (!isStreaming && !disabled && (value.trim() || stagedFiles.length > 0)) {
+        onSend(value, stagedFiles);
+        setStagedFiles([]);
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+        }
+      }
     }
     if (e.key === "Escape" && isStreaming) {
       onStop();
@@ -90,6 +94,9 @@ const ChatInput = ({ value, onChange, onSend, onStop, isStreaming, disabled, sel
     if (!value.trim() && stagedFiles.length === 0) return;
     onSend(value, stagedFiles);
     setStagedFiles([]);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
   };
 
   const triggerFileInput = (accept: string, e: React.MouseEvent) => {
@@ -106,28 +113,34 @@ const ChatInput = ({ value, onChange, onSend, onStop, isStreaming, disabled, sel
     if (!files || files.length === 0) return;
 
     setIsUploading(true);
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const formData = new FormData();
-      formData.append("file", file);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append("file", file);
 
-      try {
-        const resp = await fetch("/api/aarka/upload", {
+        const res = await fetch("/api/aarka/upload", {
           method: "POST",
           body: formData,
         });
-        if (resp.status === 200) {
-          const data = await resp.json();
-          setStagedFiles((prev) => [...prev, { name: data.filename, path: data.path }]);
+
+        if (res.ok) {
+          const data = await res.json();
+          setStagedFiles((prev) => [
+            ...prev,
+            { name: data.filename || file.name, path: data.path || "" },
+          ]);
         } else {
-          console.error("Failed to upload file", file.name);
+          console.error("File upload failed:", file.name);
         }
-      } catch (err) {
-        console.error("Error uploading file", err);
       }
+    } catch (err) {
+      console.error("Upload error:", err);
+    } finally {
+      setIsUploading(false);
+      setShowAttachMenu(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
-    setIsUploading(false);
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const removeStagedFile = (index: number) => {
@@ -144,24 +157,51 @@ const ChatInput = ({ value, onChange, onSend, onStop, isStreaming, disabled, sel
       return;
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    const windowObj = window as unknown as {
+      SpeechRecognition?: new () => {
+        continuous: boolean;
+        interimResults: boolean;
+        lang: string;
+        onstart: () => void;
+        onerror: (ev: { error: string }) => void;
+        onend: () => void;
+        onresult: (ev: { resultIndex: number; results: Array<Array<{ transcript: string; isFinal?: boolean }>> }) => void;
+        start: () => void;
+        stop: () => void;
+      };
+      webkitSpeechRecognition?: new () => {
+        continuous: boolean;
+        interimResults: boolean;
+        lang: string;
+        onstart: () => void;
+        onerror: (ev: { error: string }) => void;
+        onend: () => void;
+        onresult: (ev: { resultIndex: number; results: Array<Array<{ transcript: string; isFinal?: boolean }>> }) => void;
+        start: () => void;
+        stop: () => void;
+      };
+    };
+
+    const SpeechRecognitionClass = windowObj.SpeechRecognition || windowObj.webkitSpeechRecognition;
+    if (!SpeechRecognitionClass) {
       alert("Speech recognition is not supported in this browser. Please use Chrome, Safari, or Edge.");
       return;
     }
 
-    const recognition = new SpeechRecognition();
+    const recognition = new SpeechRecognitionClass();
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = "en-US";
 
     recognition.onstart = () => { setIsListening(true); };
-    recognition.onerror = (event: any) => { console.error("Speech recognition error", event.error); setIsListening(false); };
+    recognition.onerror = (event) => { console.error("Speech recognition error", event.error); setIsListening(false); };
     recognition.onend = () => { setIsListening(false); };
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       let finalTranscript = "";
       for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+        if (event.results[i][0] && event.results[i][0].transcript) {
+          finalTranscript += event.results[i][0].transcript;
+        }
       }
       if (finalTranscript) onChange((value ? value + " " : "") + finalTranscript.trim());
     };
@@ -264,7 +304,7 @@ const ChatInput = ({ value, onChange, onSend, onStop, isStreaming, disabled, sel
                       return (
                         <button
                           key={model.id}
-                          onClick={() => { onModelChange && onModelChange(model.id); setShowModelMenu(false); }}
+                          onClick={() => { if (onModelChange) onModelChange(model.id); setShowModelMenu(false); }}
                           style={{
                             display: "flex",
                             alignItems: "center",

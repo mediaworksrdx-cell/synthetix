@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import ClaudeAarkaaAI from "@/components/ClaudeAarkaaAI";
 
 const Home = () => {
   useEffect(() => {

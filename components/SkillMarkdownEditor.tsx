@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 interface SkillMarkdownEditorProps {
   skill: {
@@ -38,20 +38,21 @@ Guidelines:
 };
 
 export default function SkillMarkdownEditor({ skill, onSave, onClose, onDelete }: SkillMarkdownEditorProps) {
-  const [content, setContent] = useState("");
-  const [name, setName] = useState("");
-  const [validationMsg, setValidationMsg] = useState("");
+  const defaultContent = skill
+    ? (skill.content || `---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n# ${skill.name}`)
+    : TEMPLATES.document;
 
-  useEffect(() => {
-    if (skill) {
-      setName(skill.name);
-      setContent(skill.content || `---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n# ${skill.name}`);
-    } else {
-      setName("");
-      setContent(TEMPLATES.document);
-    }
+  const [content, setContent] = useState(defaultContent);
+  const [name, setName] = useState(skill ? skill.name : "");
+  const [validationMsg, setValidationMsg] = useState("");
+  const [prevSkill, setPrevSkill] = useState(skill);
+
+  if (skill !== prevSkill) {
+    setPrevSkill(skill);
+    setName(skill ? skill.name : "");
+    setContent(defaultContent);
     setValidationMsg("");
-  }, [skill]);
+  }
 
   const handleValidate = () => {
     if (!content.startsWith("---")) {
